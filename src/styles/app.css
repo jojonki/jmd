@@ -1,0 +1,279 @@
+/* App shell: a title bar, two panes with a draggable divider, a status bar. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+
+/* ------------------------------------------------------------------ titlebar */
+
+#titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px 0 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+/* Leave room for the macOS traffic lights. */
+body[data-platform='darwin'] #titlebar {
+  padding-left: 78px;
+}
+
+.tb-drag {
+  flex: 1 1 auto;
+  align-self: stretch;
+}
+
+.tb-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.doc-name {
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40vw;
+}
+
+.dirty-dot {
+  color: var(--accent);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tb-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.tb-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 4px 9px;
+  cursor: default;
+}
+
+.tb-btn:hover {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.tb-btn.is-active {
+  background: var(--bg);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+#btn-wysiwyg.is-active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: transparent;
+}
+
+.seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.seg-btn {
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--border);
+  padding: 4px 8px;
+}
+
+.seg-btn:last-child {
+  border-right: none;
+}
+
+.tb-select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px 6px;
+  max-width: 150px;
+}
+
+/* --------------------------------------------------------------------- panes */
+
+#panes {
+  display: grid;
+  min-height: 0;
+  background: var(--bg);
+}
+
+#panes.layout-split {
+  grid-template-columns: var(--split, 50%) 1px 1fr;
+}
+
+#panes.layout-editor {
+  grid-template-columns: 1fr 0 0;
+}
+
+#panes.layout-preview {
+  grid-template-columns: 0 0 1fr;
+}
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+#panes.layout-editor #preview-pane,
+#panes.layout-preview #editor-pane {
+  display: none;
+}
+
+#editor-pane {
+  overflow: hidden;
+}
+
+#divider {
+  background: var(--border);
+  cursor: col-resize;
+  position: relative;
+}
+
+#divider::after {
+  content: '';
+  position: absolute;
+  inset: 0 -3px;
+}
+
+#divider:hover,
+#divider:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
+#panes.layout-editor #divider,
+#panes.layout-preview #divider {
+  display: none;
+}
+
+#preview-pane {
+  background: var(--bg);
+}
+
+#preview {
+  padding: var(--pane-pad-y) var(--pane-pad-x);
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+#preview.is-editable {
+  outline: none;
+  caret-color: var(--caret);
+}
+
+#preview.is-editable > *:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+#preview.is-editable > [contenteditable='false'] {
+  cursor: pointer;
+  position: relative;
+}
+
+#preview.is-editable > [contenteditable='false']:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* ----------------------------------------------------------------- statusbar */
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 24px;
+  padding: 0 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--fg-faint);
+  font-size: 11.5px;
+  user-select: none;
+}
+
+.sb-grow {
+  flex: 1 1 auto;
+}
+
+.sb-sep {
+  width: 1px;
+  height: 11px;
+  background: var(--border);
+}
+
+#status-msg {
+  color: var(--fg-muted);
+  transition: opacity 0.4s ease;
+}
+
+/* Thin, unobtrusive scrollbars in both panes. */
+.pane::-webkit-scrollbar,
+.cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.pane::-webkit-scrollbar-thumb,
+.cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid var(--bg);
+  border-radius: 6px;
+}
+
+.pane::-webkit-scrollbar-thumb:hover,
+.cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-faint);
+}
+
+.pane::-webkit-scrollbar-track,
+.cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}

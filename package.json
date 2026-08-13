@@ -1,0 +1,71 @@
+{
+  "name": "jmd",
+  "version": "0.1.0",
+  "description": "A simple, lightweight markdown editor with live preview",
+  "main": "electron/main.js",
+  "author": "jonki",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -r \"vite\" \"wait-on tcp:5173 && cross-env JMD_DEV_SERVER=http://localhost:5173 electron .\"",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "smoke": "cross-env JMD_SMOKE=test/smoke.cjs JMD_DEV_SERVER=http://localhost:5173 electron .",
+    "smoke:dist": "npm run build && cross-env JMD_SMOKE=test/smoke.cjs electron .",
+    "icon": "node scripts/make-icon.cjs",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/language": "^6.11.0",
+    "@codemirror/language-data": "^6.5.1",
+    "@codemirror/search": "^6.5.10",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.5",
+    "@lezer/highlight": "^1.2.1",
+    "dompurify": "^3.2.5",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.22",
+    "markdown-it": "^14.1.0",
+    "markdown-it-deflist": "^3.0.0",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-mark": "^4.0.0",
+    "markdown-it-sub": "^2.0.0",
+    "markdown-it-sup": "^2.0.0",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^35.1.4",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.2.6",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "dev.jonki.jmd",
+    "productName": "jmd",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}

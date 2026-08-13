@@ -1,0 +1,246 @@
+/*
+ * Colour templates. Every theme sets the same token vocabulary, so the editor,
+ * the preview and the chrome all restyle together when `data-theme` changes on
+ * <html>. Adding a theme means adding one block here plus one entry in
+ * `src/themes.js`.
+ */
+
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
+    'Noto Sans JP', 'Yu Gothic UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'JetBrains Mono', Menlo,
+    Consolas, 'Hiragino Sans', 'Noto Sans JP', monospace;
+  --font-body: var(--font-ui);
+
+  --editor-font-size: 14.5px;
+  --editor-line-height: 1.7;
+  --preview-font-size: 15.5px;
+  --preview-line-height: 1.75;
+  --measure: 46rem;
+  --pane-pad-x: 28px;
+  --pane-pad-y: 24px;
+  --radius: 5px;
+}
+
+/* ------------------------------------------------------------ GitHub Light */
+[data-theme='github'] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-elevated: #f6f8fa;
+  --bg-inset: #f6f8fa;
+  --fg: #1f2328;
+  --fg-muted: #656d76;
+  --fg-faint: #a0a6ad;
+  --border: #d1d9e0;
+  --border-strong: #b8c0c8;
+  --accent: #0969da;
+  --accent-fg: #ffffff;
+  --link: #0969da;
+  --selection: #b6d7ff88;
+  --active-line: #f6f8fa;
+  --caret: #0969da;
+  --match: #fff8c5;
+  --match-active: #ffdf5d;
+  --code-bg: #f6f8fa;
+  --code-fg: #1f2328;
+  --quote-border: #d1d9e0;
+  --table-stripe: #f6f8fa;
+  --mark-bg: #fff8c5;
+  --syn-heading: #0550ae;
+  --syn-strong: #1f2328;
+  --syn-emphasis: #1f2328;
+  --syn-link: #0969da;
+  --syn-code: #953800;
+  --syn-marker: #8250df;
+  --syn-keyword: #cf222e;
+  --syn-string: #0a3069;
+  --syn-number: #0550ae;
+  --syn-function: #8250df;
+  --syn-type: #953800;
+}
+
+/* -------------------------------------------------------------------- Paper */
+[data-theme='paper'] {
+  color-scheme: light;
+  --bg: #fbf8f3;
+  --bg-elevated: #f3ede3;
+  --bg-inset: #f3ede3;
+  --fg: #33302b;
+  --fg-muted: #7a736a;
+  --fg-faint: #b0a89c;
+  --border: #e2d9cb;
+  --border-strong: #cec3b1;
+  --accent: #a4560f;
+  --accent-fg: #ffffff;
+  --link: #a4560f;
+  --selection: #e8d5b088;
+  --active-line: #f5efe6;
+  --caret: #a4560f;
+  --match: #f0e2c0;
+  --match-active: #e3cb92;
+  --code-bg: #f2ece2;
+  --code-fg: #4a453d;
+  --quote-border: #d9cdb9;
+  --table-stripe: #f5efe6;
+  --mark-bg: #f2e3bc;
+  --font-body: 'Iowan Old Style', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif;
+  --syn-heading: #8a4a12;
+  --syn-strong: #33302b;
+  --syn-emphasis: #33302b;
+  --syn-link: #a4560f;
+  --syn-code: #7d5a2e;
+  --syn-marker: #ab7f3e;
+  --syn-keyword: #9c3a2f;
+  --syn-string: #5c6f36;
+  --syn-number: #8a5a2b;
+  --syn-function: #7a5296;
+  --syn-type: #97632a;
+}
+
+/* ------------------------------------------------------------ Solarized Light */
+[data-theme='solarized-light'] {
+  color-scheme: light;
+  --bg: #fdf6e3;
+  --bg-elevated: #eee8d5;
+  --bg-inset: #eee8d5;
+  --fg: #586e75;
+  --fg-muted: #93a1a1;
+  --fg-faint: #b3bcbc;
+  --border: #e0dac4;
+  --border-strong: #ccc5b0;
+  --accent: #268bd2;
+  --accent-fg: #fdf6e3;
+  --link: #268bd2;
+  --selection: #cfe4ee;
+  --active-line: #f4edda;
+  --caret: #268bd2;
+  --match: #f2e7bd;
+  --match-active: #e4d191;
+  --code-bg: #eee8d5;
+  --code-fg: #073642;
+  --quote-border: #d8d2bc;
+  --table-stripe: #f4edda;
+  --mark-bg: #f2e7bd;
+  --syn-heading: #268bd2;
+  --syn-strong: #073642;
+  --syn-emphasis: #586e75;
+  --syn-link: #268bd2;
+  --syn-code: #cb4b16;
+  --syn-marker: #d33682;
+  --syn-keyword: #859900;
+  --syn-string: #2aa198;
+  --syn-number: #d33682;
+  --syn-function: #268bd2;
+  --syn-type: #b58900;
+}
+
+/* --------------------------------------------------------------------- Nord */
+[data-theme='nord'] {
+  color-scheme: dark;
+  --bg: #2e3440;
+  --bg-elevated: #3b4252;
+  --bg-inset: #3b4252;
+  --fg: #e5e9f0;
+  --fg-muted: #a5aec0;
+  --fg-faint: #6f7a8f;
+  --border: #434c5e;
+  --border-strong: #4c566a;
+  --accent: #88c0d0;
+  --accent-fg: #2e3440;
+  --link: #88c0d0;
+  --selection: #4c566a99;
+  --active-line: #353c4a;
+  --caret: #88c0d0;
+  --match: #4c566a;
+  --match-active: #5e81ac;
+  --code-bg: #3b4252;
+  --code-fg: #e5e9f0;
+  --quote-border: #4c566a;
+  --table-stripe: #343b48;
+  --mark-bg: #4c566a;
+  --syn-heading: #88c0d0;
+  --syn-strong: #eceff4;
+  --syn-emphasis: #e5e9f0;
+  --syn-link: #8fbcbb;
+  --syn-code: #ebcb8b;
+  --syn-marker: #b48ead;
+  --syn-keyword: #81a1c1;
+  --syn-string: #a3be8c;
+  --syn-number: #b48ead;
+  --syn-function: #88c0d0;
+  --syn-type: #8fbcbb;
+}
+
+/* ------------------------------------------------------------------ Dracula */
+[data-theme='dracula'] {
+  color-scheme: dark;
+  --bg: #282a36;
+  --bg-elevated: #343746;
+  --bg-inset: #343746;
+  --fg: #f8f8f2;
+  --fg-muted: #9ea3b8;
+  --fg-faint: #6272a4;
+  --border: #44475a;
+  --border-strong: #565a71;
+  --accent: #bd93f9;
+  --accent-fg: #282a36;
+  --link: #8be9fd;
+  --selection: #44475a;
+  --active-line: #2f3242;
+  --caret: #ff79c6;
+  --match: #44475a;
+  --match-active: #6272a4;
+  --code-bg: #343746;
+  --code-fg: #f8f8f2;
+  --quote-border: #6272a4;
+  --table-stripe: #2f3242;
+  --mark-bg: #5b5030;
+  --syn-heading: #bd93f9;
+  --syn-strong: #ffb86c;
+  --syn-emphasis: #f1fa8c;
+  --syn-link: #8be9fd;
+  --syn-code: #50fa7b;
+  --syn-marker: #ff79c6;
+  --syn-keyword: #ff79c6;
+  --syn-string: #f1fa8c;
+  --syn-number: #bd93f9;
+  --syn-function: #50fa7b;
+  --syn-type: #8be9fd;
+}
+
+/* -------------------------------------------------------------- Gruvbox Dark */
+[data-theme='gruvbox-dark'] {
+  color-scheme: dark;
+  --bg: #1d2021;
+  --bg-elevated: #282828;
+  --bg-inset: #32302f;
+  --fg: #ebdbb2;
+  --fg-muted: #a89984;
+  --fg-faint: #7c6f64;
+  --border: #3c3836;
+  --border-strong: #504945;
+  --accent: #fabd2f;
+  --accent-fg: #1d2021;
+  --link: #83a598;
+  --selection: #504945;
+  --active-line: #262829;
+  --caret: #fabd2f;
+  --match: #504945;
+  --match-active: #665c54;
+  --code-bg: #282828;
+  --code-fg: #ebdbb2;
+  --quote-border: #504945;
+  --table-stripe: #262829;
+  --mark-bg: #5a4c22;
+  --syn-heading: #fabd2f;
+  --syn-strong: #fe8019;
+  --syn-emphasis: #ebdbb2;
+  --syn-link: #83a598;
+  --syn-code: #b8bb26;
+  --syn-marker: #d3869b;
+  --syn-keyword: #fb4934;
+  --syn-string: #b8bb26;
+  --syn-number: #d3869b;
+  --syn-function: #8ec07c;
+  --syn-type: #fabd2f;
+}

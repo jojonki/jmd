@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' jmd-file: data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' ws://localhost:5173 http://localhost:5173"
+    />
+    <title>jmd</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="titlebar">
+        <div class="tb-drag"></div>
+        <div class="tb-actions">
+          <span id="doc-name" class="doc-name">Untitled</span>
+          <span id="dirty-dot" class="dirty-dot" hidden>&bull;</span>
+        </div>
+        <div class="tb-drag"></div>
+        <div class="tb-controls">
+          <button id="btn-wysiwyg" class="tb-btn" type="button" title="Edit in preview (⌘E)">
+            Edit in preview
+          </button>
+          <div class="seg" role="group" aria-label="Layout">
+            <button class="tb-btn seg-btn" data-layout="editor" type="button" title="Editor only (⌘1)">Editor</button>
+            <button class="tb-btn seg-btn is-active" data-layout="split" type="button" title="Split (⌘2)">Split</button>
+            <button class="tb-btn seg-btn" data-layout="preview" type="button" title="Preview only (⌘3)">Preview</button>
+          </div>
+          <select id="theme-select" class="tb-select" aria-label="Color theme"></select>
+        </div>
+      </header>
+
+      <main id="panes" class="layout-split">
+        <section id="editor-pane" class="pane"></section>
+        <div id="divider" role="separator" aria-orientation="vertical" tabindex="0"></div>
+        <section id="preview-pane" class="pane">
+          <article id="preview" class="markdown-body"></article>
+        </section>
+      </main>
+
+      <footer id="statusbar">
+        <span id="status-mode">Source</span>
+        <span class="sb-sep"></span>
+        <span id="status-counts"></span>
+        <span class="sb-grow"></span>
+        <span id="status-msg"></span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
