@@ -32,6 +32,8 @@ preview views. Built with Electron for macOS and Windows.
 - **Six colour templates**, covering the editor, the preview and the chrome
   from a single set of CSS variables — plus an accent colour of your own on top
   of any of them.
+- **Two column widths.** A normal measure and a wide one, toggled with ⌘⌃W or
+  from the status bar; both are set in rem in Settings › Appearance.
 - **Rebindable keys.** Tab navigation, layouts, in-preview editing, file reveal
   and Settings are listed in Settings › Shortcuts and can be rebound instantly.
 - **The file's absolute path** sits in the header directly above its active tab;
@@ -105,6 +107,7 @@ The whole path from bumping the version to publishing on GitHub Releases is writ
 | Select tab 1–8 / last tab | ⌘1…⌘8 / ⌘9 | Ctrl+1…Ctrl+8 / Ctrl+9 | Yes |
 | Next / previous tab | ⌘⇥ or ⌃⇥ / ⌘⇧⇥ or ⌃⇧⇥ | Ctrl+Tab / Ctrl+Shift+Tab | Yes |
 | Editor / split / preview | ⌘⌃1 / ⌘⌃2 / ⌘⌃3 | Ctrl+Alt+1 / Ctrl+Alt+2 / Ctrl+Alt+3 | Yes |
+| Toggle wide width | ⌘⌃W | Ctrl+Alt+W | Yes |
 | Toggle editing in the preview | ⌘E | Ctrl+E | Yes |
 | Find in the preview | ⌘⇧F | Ctrl+Shift+F | Yes |
 | Reveal in Finder / file manager | ⌘⇧R | Ctrl+Shift+R | Yes |
@@ -132,6 +135,12 @@ Drag the divider to resize the panes; double-click it to reset to 50/50.
 Double-click any preview block to jump the source caret to that line.
 Preview-only (⌘⌃3) turns on in-preview editing for you, since editing is the only
 thing that pane is there for; ⌘⌃1 turns it back off.
+
+The text column has two widths rather than one. ⌘⌃W switches between them, as
+does the width reading in the status bar and Settings › Appearance. Wide earns
+its keep on a large display or a table-heavy document; the normal measure is
+where prose belongs. Both widths are yours to set — 46rem and 72rem by default —
+and the editor and the preview read the same one, so they widen together.
 
 ## Moving tabs between windows
 

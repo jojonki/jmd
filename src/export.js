@@ -6,7 +6,7 @@ import markdownCss from './styles/markdown.css?inline';
  * current colour theme. KaTeX's stylesheet is linked rather than inlined
  * because its web fonts cannot be embedded without bloating every export.
  */
-export function exportDocument({ title, bodyHtml, theme }) {
+export function exportDocument({ title, bodyHtml, theme, width = 46 }) {
   return `<!doctype html>
 <html lang="en" data-theme="${escapeAttr(theme)}">
 <head>
@@ -24,7 +24,7 @@ body {
   background: var(--bg);
   color: var(--fg);
 }
-.markdown-body { max-width: 46rem; margin: 0 auto; }
+.markdown-body { max-width: ${Number(width) || 46}rem; margin: 0 auto; }
 ::selection { background-color: var(--selection); color: var(--selection-fg); }
 </style>
 </head>

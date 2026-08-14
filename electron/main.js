@@ -197,6 +197,7 @@ function buildMenu() {
         actionItem('Editor + Preview', 'layout.split'),
         actionItem('Preview Only', 'layout.preview'),
         { type: 'separator' },
+        actionItem('Wide Width', 'view.wide'),
         actionItem('Edit In Preview', 'view.wysiwyg'),
         { type: 'separator' },
         {

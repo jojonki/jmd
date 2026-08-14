@@ -16,10 +16,19 @@
   --editor-line-height: 1.7;
   --preview-font-size: 15.5px;
   --preview-line-height: 1.75;
-  --measure: 46rem;
+  /* The text column's two widths. `--measure` is what the editor and the
+     preview actually read; wide mode swaps which of the pair it points at. */
+  --measure-normal: 46rem;
+  --measure-wide: 72rem;
+  --measure: var(--measure-normal);
   --pane-pad-x: 28px;
   --pane-pad-y: 24px;
   --radius: 5px;
+}
+
+/* Wide mode, toggled on <html> by `applyWidth`. */
+:root[data-width='wide'] {
+  --measure: var(--measure-wide);
 }
 
 /* ------------------------------------------------------------ GitHub Light */

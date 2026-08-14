@@ -439,6 +439,28 @@ body.is-file-dragging #panes::after {
   background: var(--border);
 }
 
+/* A status reading that happens to be clickable — it stays as quiet as the
+   text beside it until the pointer is on it. */
+.sb-btn {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0 4px;
+  margin: 0 -4px;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.sb-btn:hover {
+  color: var(--fg-muted);
+  background: var(--bg);
+}
+
+.sb-btn[data-width='wide'] {
+  color: var(--fg-muted);
+}
+
 #status-msg {
   color: var(--fg-muted);
   transition: opacity 0.4s ease;
@@ -626,6 +648,43 @@ body.is-file-dragging #panes::after {
 
 .btn:disabled {
   opacity: 0.5;
+}
+
+/* ------------------------------------------------------------ content width */
+
+.width-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.width-row {
+  display: grid;
+  grid-template-columns: 54px 1fr 58px;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+
+/* The row whose width is currently in force reads as the live one. */
+.width-row.is-active {
+  color: var(--fg);
+}
+
+.width-row.is-active .width-name {
+  font-weight: 600;
+}
+
+.width-range {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.width-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 /* ------------------------------------------------------------------- skins */

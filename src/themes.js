@@ -9,6 +9,46 @@ export const THEMES = [
 
 export const DEFAULT_THEME = 'github';
 
+// ------------------------------------------------------------- text column
+
+/**
+ * The width of the text column, in rem. Two values are kept at once — the
+ * everyday one and the wide one — so toggling wide mode is a switch rather
+ * than a resize, the way Notion's per-page "Full width" behaves.
+ */
+export const DEFAULT_WIDTHS = { normal: 46, wide: 72 };
+
+/** Narrow enough to still hold a line of prose; wide enough to fill a display. */
+export const WIDTH_RANGE = { min: 30, max: 120 };
+
+export function clampWidth(rem, fallback) {
+  const value = Number(rem);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(WIDTH_RANGE.max, Math.max(WIDTH_RANGE.min, Math.round(value)));
+}
+
+/** Both widths, with anything missing or out of range filled from the defaults. */
+export function normalizeWidths(widths) {
+  return {
+    normal: clampWidth(widths?.normal, DEFAULT_WIDTHS.normal),
+    wide: clampWidth(widths?.wide, DEFAULT_WIDTHS.wide),
+  };
+}
+
+/**
+ * Point `--measure` at one of the two widths.
+ * @param {{ wide: boolean, widths: { normal: number, wide: number } }} options
+ * @returns {{ normal: number, wide: number }} the widths actually applied
+ */
+export function applyWidth({ wide, widths }) {
+  const applied = normalizeWidths(widths);
+  const style = document.documentElement.style;
+  style.setProperty('--measure-normal', `${applied.normal}rem`);
+  style.setProperty('--measure-wide', `${applied.wide}rem`);
+  document.documentElement.dataset.width = wide ? 'wide' : 'normal';
+  return applied;
+}
+
 /** Handy starting points for the accent picker. */
 export const ACCENT_PRESETS = [
   '#0969da', '#1f883d', '#8250df', '#bf3989',

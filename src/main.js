@@ -7,7 +7,15 @@ import { Editor } from './editor/editor.js';
 import { Preview } from './preview/preview.js';
 import { PreviewEditor } from './preview/wysiwyg.js';
 import { PreviewFind } from './preview/find.js';
-import { DEFAULT_THEME, applyTheme, applyAccent, normalizeHex } from './themes.js';
+import {
+  DEFAULT_THEME,
+  DEFAULT_WIDTHS,
+  applyTheme,
+  applyAccent,
+  applyWidth,
+  normalizeHex,
+  normalizeWidths,
+} from './themes.js';
 import { exportDocument } from './export.js';
 import { TabBar, TAB_MIME } from './tabs.js';
 import { Shortcuts, formatAccel } from './shortcuts.js';
@@ -35,6 +43,7 @@ const el = {
   docPath: $('doc-path'),
   docPathText: $('doc-path-text'),
   statusLayout: $('status-layout'),
+  statusWidth: $('status-width'),
   settingsBtn: $('btn-settings'),
   statusMode: $('status-mode'),
   statusCounts: $('status-counts'),
@@ -51,6 +60,8 @@ const settings = {
   accent: null,
   layout: 'split',
   split: 50,
+  wide: false,
+  widths: { ...DEFAULT_WIDTHS },
   wysiwyg: true,
   shortcuts: null,
   ...readSettings(),
@@ -539,6 +550,7 @@ function revealActive() {
 }
 
 el.docPath.addEventListener('click', () => revealActive());
+el.statusWidth.addEventListener('click', () => setWide(!settings.wide));
 
 let statusTimer = null;
 function flash(message) {
@@ -606,6 +618,28 @@ function setSplit(percent) {
   settings.split = clamped;
   el.panes.style.setProperty('--split', `${clamped}%`);
   saveSettings();
+}
+
+/**
+ * Wide mode. Both panes read `--measure`, so the editor and the preview widen
+ * together and the setting outlives the window.
+ */
+function setWide(wide) {
+  settings.wide = !!wide;
+  settings.widths = applyWidth({ wide: settings.wide, widths: settings.widths });
+  el.statusWidth.textContent = settings.wide ? 'Wide' : 'Normal';
+  el.statusWidth.dataset.width = settings.wide ? 'wide' : 'normal';
+  saveSettings();
+  settingsPanel?.syncAppearance();
+  requestAnimationFrame(() => editor.view.requestMeasure());
+}
+
+/** Change either stored width; the one in force takes effect immediately. */
+function setWidths(widths) {
+  settings.widths = applyWidth({ wide: settings.wide, widths: { ...settings.widths, ...widths } });
+  saveSettings();
+  settingsPanel?.syncAppearance();
+  requestAnimationFrame(() => editor.view.requestMeasure());
 }
 
 function setWysiwyg(enabled) {
@@ -741,6 +775,8 @@ function buildExportHtml() {
     title: (bridge?.basename?.(active?.path) ?? 'Untitled').replace(/\.[^.]+$/, ''),
     bodyHtml: el.preview.innerHTML,
     theme: settings.theme,
+    // The export reads the way the document does on screen, wide mode included.
+    width: settings.wide ? settings.widths.wide : settings.widths.normal,
   });
 }
 
@@ -758,6 +794,8 @@ const settingsPanel = createSettingsPanel({
   onTheme: (id) => setTheme(id),
   onAccent: (color) => setAccent(color),
   onLayout: (layout) => setLayout(layout),
+  onWide: (wide) => setWide(wide),
+  onWidths: (widths) => setWidths(widths),
   onShortcuts: () => {
     settings.shortcuts = shortcuts.toJSON();
     saveSettings();
@@ -784,6 +822,7 @@ const ACTIONS = {
   'layout.editor': () => setLayout('editor'),
   'layout.split': () => setLayout('split'),
   'layout.preview': () => setLayout('preview'),
+  'view.wide': () => setWide(!settings.wide),
   'view.wysiwyg': () => setWysiwyg(!previewEditor.enabled),
   'find.preview': () => findInPreview(),
   'file.reveal': () => revealActive(),
@@ -829,6 +868,7 @@ function publishShortcuts() {
   };
   el.settingsBtn.title = `Settings${hint('app.settings')}`;
   el.newTabBtn.title = `New tab${hint('tab.new')}`;
+  el.statusWidth.title = `Toggle wide width${hint('view.wide')}`;
   refreshPath();
 }
 
@@ -881,6 +921,8 @@ window.__jmd = {
   openFind,
   setWysiwyg,
   setLayout,
+  setWide,
+  setWidths,
   setTheme,
   setAccent,
   loadDocument,
@@ -912,6 +954,8 @@ window.__jmd = {
 setTheme(settings.theme);
 setAccent(settings.accent);
 setSplit(settings.split);
+settings.widths = normalizeWidths(settings.widths);
+setWide(settings.wide);
 setLayout(['editor', 'split', 'preview'].includes(settings.layout) ? settings.layout : 'split');
 publishShortcuts();
 

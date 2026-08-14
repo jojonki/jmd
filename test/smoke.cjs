@@ -1236,6 +1236,63 @@ module.exports = async function run(win, { app }) {
     })()`);
     await wait(300);
 
+    // --------------------------------------------------------- wide width
+    const measure = () => js(`(() => ({
+      wide: window.__jmd.settings.wide,
+      widths: window.__jmd.settings.widths,
+      attr: document.documentElement.dataset.width,
+      preview: getComputedStyle(document.getElementById('preview')).maxWidth,
+      source: getComputedStyle(document.querySelector('.cm-content')).maxWidth,
+      status: document.getElementById('status-width').textContent,
+    }))()`);
+
+    await js(`window.__jmd.setWide(false)`);
+    await wait(200);
+    const normalWidth = await measure();
+    check('the normal column is the narrower of the two widths',
+      normalWidth.attr === 'normal' && normalWidth.preview === normalWidth.source &&
+      parseFloat(normalWidth.preview) > 0 && normalWidth.status === 'Normal',
+      JSON.stringify(normalWidth));
+
+    await press('Cmd+Ctrl+W');
+    await wait(250);
+    const wideWidth = await measure();
+    check('the wide shortcut widens both panes together',
+      wideWidth.wide === true && wideWidth.attr === 'wide' &&
+      wideWidth.preview === wideWidth.source &&
+      parseFloat(wideWidth.preview) > parseFloat(normalWidth.preview),
+      JSON.stringify(wideWidth));
+
+    // Each width is a stored parameter, and changing the one in force is live.
+    await js(`window.__jmd.setWidths({ wide: 90 })`);
+    await wait(200);
+    const custom = await measure();
+    check('the wide width is configurable and applies at once',
+      custom.widths.wide === 90 && Math.round(parseFloat(custom.preview)) === 90 * 16,
+      JSON.stringify(custom));
+
+    // Out-of-range values are clamped rather than taken literally.
+    await js(`window.__jmd.setWidths({ normal: 5, wide: 999 })`);
+    await wait(150);
+    const clamped = await js(`window.__jmd.settings.widths`);
+    check('stored widths are clamped to a usable range',
+      clamped.normal === 30 && clamped.wide === 120, JSON.stringify(clamped));
+
+    const exportedWidth = await js(`(() => {
+      window.__jmd.setWidths({ normal: 46, wide: 72 });
+      const html = window.__jmd.buildExportHtml();
+      return /max-width: 72rem/.test(html);
+    })()`);
+    check('an export carries the width the document is read at', exportedWidth === true,
+      String(exportedWidth));
+
+    await js(`document.getElementById('status-width').click()`);
+    await wait(200);
+    const toggledBack = await measure();
+    check('the status bar reading toggles wide mode back off',
+      toggledBack.wide === false && toggledBack.status === 'Normal' &&
+      toggledBack.preview === normalWidth.preview, JSON.stringify(toggledBack));
+
     // ------------------------------------------------------ settings panel
     await press('Cmd+,');
     await wait(300);
@@ -1243,10 +1300,13 @@ module.exports = async function run(win, { app }) {
       open: !document.getElementById('settings').hidden,
       skins: document.querySelectorAll('#skin-grid .skin').length,
       layouts: document.querySelectorAll('#layout-setting [data-layout]').length,
+      widths: document.querySelectorAll('#width-setting [data-wide]').length,
+      sliders: document.querySelectorAll('.width-row .width-range').length,
       rows: document.querySelectorAll('.shortcut-row').length,
     }))()`);
     check('the settings dialog opens',
-      settingsOpen.open && settingsOpen.skins >= 6 && settingsOpen.layouts === 3,
+      settingsOpen.open && settingsOpen.skins >= 6 && settingsOpen.layouts === 3 &&
+      settingsOpen.widths === 2 && settingsOpen.sliders === 2,
       JSON.stringify(settingsOpen));
 
     await js(`document.querySelector('.nav-btn[data-section="shortcuts"]').click()`);

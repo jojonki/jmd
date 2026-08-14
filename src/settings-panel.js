@@ -4,7 +4,7 @@
  * The panel never touches storage itself — it calls back into the app, which
  * owns the settings object and persists it.
  */
-import { THEMES, ACCENT_PRESETS } from './themes.js';
+import { THEMES, ACCENT_PRESETS, DEFAULT_WIDTHS, WIDTH_RANGE } from './themes.js';
 import {
   ACTION_GROUPS,
   IS_MAC,
@@ -16,7 +16,16 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
-export function createSettingsPanel({ shortcuts, settings, onTheme, onAccent, onLayout, onShortcuts }) {
+export function createSettingsPanel({
+  shortcuts,
+  settings,
+  onTheme,
+  onAccent,
+  onLayout,
+  onWide,
+  onWidths,
+  onShortcuts,
+}) {
   const overlay = $('settings');
   const appearance = $('pane-appearance');
   const shortcutsPane = $('pane-shortcuts');
@@ -35,6 +44,23 @@ export function createSettingsPanel({ shortcuts, settings, onTheme, onAccent, on
       </div>
     </div>
     <div class="field">
+      <div class="field-label">Content width</div>
+      <div class="field-hint">
+        How wide the text column grows before it stops. Switch to Wide${wideHint()}
+        or from the status bar — it earns its keep on a big screen or a
+        table-heavy document.
+      </div>
+      <div class="setting-seg" id="width-setting" role="group" aria-label="Content width">
+        <button type="button" class="btn" data-wide="normal">Normal</button>
+        <button type="button" class="btn" data-wide="wide">Wide</button>
+      </div>
+      <div class="width-rows">
+        ${widthRow('normal', 'Normal')}
+        ${widthRow('wide', 'Wide')}
+      </div>
+      <button type="button" class="btn" id="width-reset">Restore default widths</button>
+    </div>
+    <div class="field">
       <div class="field-label">Skin</div>
       <div class="field-hint">The colour scheme for the editor, the preview and the app chrome.</div>
       <div class="skins" id="skin-grid"></div>
@@ -49,6 +75,22 @@ export function createSettingsPanel({ shortcuts, settings, onTheme, onAccent, on
       </div>
     </div>`;
 
+  /** The current binding for the wide toggle, mentioned in the hint. */
+  function wideHint() {
+    const accel = shortcuts.primary('view.wide');
+    return accel ? ` with <b>${formatAccel(accel)}</b>` : '';
+  }
+
+  function widthRow(key, label) {
+    return `
+      <label class="width-row">
+        <span class="width-name">${label}</span>
+        <input type="range" class="width-range" id="width-${key}"
+          min="${WIDTH_RANGE.min}" max="${WIDTH_RANGE.max}" step="1" />
+        <output class="width-value" id="width-${key}-value"></output>
+      </label>`;
+  }
+
   const skinGrid = $('skin-grid');
   const layoutSetting = $('layout-setting');
   for (const button of layoutSetting.children) {
@@ -57,6 +99,20 @@ export function createSettingsPanel({ shortcuts, settings, onTheme, onAccent, on
       syncAppearance();
     });
   }
+
+  const widthSetting = $('width-setting');
+  for (const button of widthSetting.children) {
+    button.addEventListener('click', () => onWide(button.dataset.wide === 'wide'));
+  }
+  // Dragging a slider retargets the mode it belongs to, so the change you are
+  // making is the one on screen.
+  for (const key of ['normal', 'wide']) {
+    $(`width-${key}`).addEventListener('input', (event) => {
+      if (settings.wide !== (key === 'wide')) onWide(key === 'wide');
+      onWidths({ [key]: Number(event.target.value) });
+    });
+  }
+  $('width-reset').addEventListener('click', () => onWidths({ ...DEFAULT_WIDTHS }));
   for (const theme of THEMES) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -102,6 +158,19 @@ export function createSettingsPanel({ shortcuts, settings, onTheme, onAccent, on
     for (const button of layoutSetting.children) {
       button.classList.toggle('is-active', button.dataset.layout === settings.layout);
     }
+    for (const button of widthSetting.children) {
+      button.classList.toggle('is-active', (button.dataset.wide === 'wide') === !!settings.wide);
+    }
+    for (const key of ['normal', 'wide']) {
+      const rem = settings.widths?.[key] ?? DEFAULT_WIDTHS[key];
+      $(`width-${key}`).value = String(rem);
+      $(`width-${key}-value`).textContent = `${rem} rem`;
+      $(`width-${key}`).closest('.width-row')
+        .classList.toggle('is-active', (key === 'wide') === !!settings.wide);
+    }
+    $('width-reset').disabled =
+      settings.widths?.normal === DEFAULT_WIDTHS.normal &&
+      settings.widths?.wide === DEFAULT_WIDTHS.wide;
     for (const button of skinGrid.children) {
       button.classList.toggle('is-active', button.dataset.theme === settings.theme);
     }
