@@ -94,6 +94,9 @@ spctl -a -vvv -t install release/mac-arm64/jmd.app
 spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-arm64.dmg
 ```
 
+The whole path from bumping the version to publishing on GitHub Releases is written up in
+[docs/release.md](docs/release.md) (in Japanese).
+
 ## Keyboard shortcuts
 
 | Action | macOS | Windows / Linux | Rebindable |

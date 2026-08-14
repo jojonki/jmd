@@ -88,6 +88,8 @@ spctl -a -vvv -t install release/mac-arm64/jmd.app
 spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-arm64.dmg
 ```
 
+バージョンを上げてから GitHub Releases に出すまでの一連の手順は [docs/release.md](docs/release.md) にまとめてある。
+
 ## キーボードショートカット
 
 | 操作 | macOS | Windows / Linux | 変更 |

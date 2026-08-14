@@ -69,6 +69,7 @@
           "arch": ["arm64", "x64"]
         }
       ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "notarize": true
     },
     "win": {
