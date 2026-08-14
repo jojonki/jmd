@@ -23,7 +23,7 @@ body {
 
 #app {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   height: 100vh;
 }
 
@@ -49,28 +49,6 @@ body[data-platform='darwin'] #titlebar {
 .tb-drag {
   flex: 1 1 auto;
   align-self: stretch;
-}
-
-.tb-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.doc-name {
-  font-size: 12.5px;
-  color: var(--fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 40vw;
-}
-
-.dirty-dot {
-  color: var(--accent);
-  font-size: 16px;
-  line-height: 1;
 }
 
 .tb-controls {
@@ -102,39 +80,134 @@ body[data-platform='darwin'] #titlebar {
   border-color: var(--border);
 }
 
-#btn-wysiwyg.is-active {
-  background: var(--accent);
-  color: var(--accent-fg);
-  border-color: transparent;
+.tb-icon {
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 7px;
 }
 
-.seg {
+/* -------------------------------------------------------------------- tabs */
+
+.tabbar {
   display: flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
+  align-items: stretch;
+  height: 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  user-select: none;
+  -webkit-app-region: drag;
 }
 
-.seg-btn {
-  border-radius: 0;
-  border: none;
+.tabs {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-app-region: no-drag;
+}
+
+.tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 190px;
+  min-width: 64px;
+  max-width: 220px;
+  padding: 0 6px 0 10px;
   border-right: 1px solid var(--border);
-  padding: 4px 8px;
-}
-
-.seg-btn:last-child {
-  border-right: none;
-}
-
-.tb-select {
-  font: inherit;
-  font-size: 12px;
   color: var(--fg-muted);
+  font-size: 12px;
+  cursor: default;
+}
+
+.tab:hover {
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+
+.tab.is-active {
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 3px 6px;
-  max-width: 150px;
+  color: var(--fg);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.tab.is-dragging {
+  opacity: 0.5;
+}
+
+.tab-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tab-dot {
+  color: var(--accent);
+  font-size: 9px;
+  line-height: 1;
+  visibility: hidden;
+}
+
+.tab.is-dirty .tab-dot {
+  visibility: visible;
+}
+
+.tab-close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 14px;
+  color: var(--fg-faint);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: default;
+  opacity: 0;
+}
+
+.tab:hover .tab-close,
+.tab.is-active .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+  color: var(--fg);
+}
+
+.tab-new {
+  flex: none;
+  width: 30px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg-faint);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+
+.tab-new:hover {
+  color: var(--fg);
+  background: var(--bg);
+}
+
+/* A lone document needs no strip: keep the "+" reachable, drop the tab chrome. */
+.tabbar.is-single .tab {
+  border-right: none;
+  box-shadow: none;
+  background: transparent;
 }
 
 /* --------------------------------------------------------------------- panes */
@@ -149,12 +222,11 @@ body[data-platform='darwin'] #titlebar {
   grid-template-columns: var(--split, 50%) 1px 1fr;
 }
 
-#panes.layout-editor {
-  grid-template-columns: 1fr 0 0;
-}
-
+/* The hidden panes below are `display: none`, so they are not grid items and
+   take no track: a single-column template is what the survivor lands in. */
+#panes.layout-editor,
 #panes.layout-preview {
-  grid-template-columns: 0 0 1fr;
+  grid-template-columns: 1fr;
 }
 
 .pane {
@@ -206,6 +278,21 @@ body[data-platform='darwin'] #titlebar {
   margin: 0 auto;
 }
 
+body.is-file-dragging #panes::after {
+  content: 'Drop Markdown files to open';
+  position: absolute;
+  inset: 12px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  font: 600 15px var(--font-ui);
+  pointer-events: none;
+}
+
 #preview.is-editable {
   outline: none;
   caret-color: var(--caret);
@@ -252,6 +339,395 @@ body[data-platform='darwin'] #titlebar {
 #status-msg {
   color: var(--fg-muted);
   transition: opacity 0.4s ease;
+}
+
+/* The active document lives beside its mode, directly above the tab names. */
+.doc-path {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 52vw;
+  max-width: 52vw;
+  min-width: 0;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--fg-faint);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+
+.doc-path:hover {
+  color: var(--fg-muted);
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.doc-path-icon {
+  flex: none;
+  opacity: 0.85;
+}
+
+.doc-path-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.setting-seg {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.setting-seg .btn.is-active {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ------------------------------------------------------------------ dialog */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, #000 38%, transparent);
+  z-index: 20;
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(660px, 100%);
+  max-height: min(560px, 100%);
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 32%);
+  overflow: hidden;
+}
+
+/* One quiet focus ring for everything in the dialog. */
+.dialog :focus {
+  outline: none;
+}
+
+.dialog :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.icon-btn {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 7px;
+  cursor: default;
+}
+
+.icon-btn:hover {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.dialog-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 5px 8px 7px;
+  cursor: default;
+}
+
+.nav-btn.is-active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.dialog-body {
+  overflow: auto;
+  padding: 16px;
+}
+
+.field {
+  margin-bottom: 22px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.field-hint {
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  cursor: default;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------------- skins */
+
+.skins {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.skin {
+  font: inherit;
+  text-align: left;
+  padding: 5px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: default;
+  color: inherit;
+}
+
+.skin:hover {
+  border-color: var(--border-strong);
+}
+
+.skin.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Each swatch carries its own `data-theme`, so the theme's own tokens paint it. */
+.skin-swatch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.skin-bar {
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fg-muted);
+}
+
+.skin-text {
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.skin-accent {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.skin-name {
+  display: block;
+  padding: 6px 3px 2px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+
+.accent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.accent-input {
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: default;
+}
+
+.accent-presets {
+  display: flex;
+  gap: 6px;
+}
+
+.accent-dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+  border-radius: 50%;
+  cursor: default;
+}
+
+.accent-dot.is-active {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--fg-muted);
+}
+
+/* --------------------------------------------------------------- shortcuts */
+
+.shortcut-note {
+  margin-bottom: 16px;
+}
+
+.shortcut-group {
+  margin-bottom: 18px;
+}
+
+.shortcut-group .field-label {
+  margin-bottom: 6px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.shortcut-label {
+  flex: 1 1 auto;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 7px;
+  min-width: 34px;
+  cursor: default;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+}
+
+.chip.is-recording {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Kept out of the way until the row is under the pointer. */
+.chip-remove {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--fg-faint);
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: default;
+  visibility: hidden;
+}
+
+.shortcut-row:hover .chip-remove,
+.chip-remove:focus-visible {
+  visibility: visible;
+}
+
+.chip-remove:hover {
+  color: var(--fg);
+}
+
+.chip-add {
+  font-family: var(--font-ui);
+  min-width: 0;
+  padding: 3px 8px;
+  color: var(--fg-muted);
+}
+
+.dialog-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.shortcut-status {
+  font-size: 11.5px;
+  color: var(--fg-muted);
 }
 
 /* Thin, unobtrusive scrollbars in both panes. */

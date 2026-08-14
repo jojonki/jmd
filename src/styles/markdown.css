@@ -49,6 +49,14 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* A just-created heading contains only Chromium's caret-holding BR. Do not
+   show the heading rule until the user has actually entered a title. */
+#preview.is-editable h1:has(> br:only-child),
+#preview.is-editable h2:has(> br:only-child) {
+  padding-bottom: 0;
+  border-bottom-color: transparent;
+}
+
 .markdown-body h3 {
   font-size: 1.2em;
 }

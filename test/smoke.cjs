@@ -32,8 +32,511 @@ module.exports = async function run(win, { app }) {
   await wait(1200);
 
   const js = (code) => wc.executeJavaScript(code, true);
+  const nativeText = async (text) => {
+    for (const char of text) {
+      wc.sendInputEvent({ type: 'char', keyCode: char });
+      await wait(20);
+    }
+  };
+  const nativeKey = async (keyCode, modifiers = []) => {
+    wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+    if (keyCode === 'Enter') wc.sendInputEvent({ type: 'char', keyCode: '\r' });
+    wc.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+    await wait(40);
+  };
+  /** Synthesized key events only reach a focused window; take it back first. */
+  const grabFocus = () => {
+    app.focus({ steal: true });
+    win.focus();
+    wc.focus();
+  };
+  const focusEmptyPreview = () => (grabFocus(), js(`(() => {
+    window.__jmd.loadDocument(null, '');
+    const root = document.getElementById('preview');
+    root.focus();
+    const p = root.firstElementChild;
+    const range = document.createRange();
+    range.selectNodeContents(p);
+    range.collapse(true);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    window.__previewInputTrace = [];
+    root.addEventListener('input', event => queueMicrotask(() => {
+      window.__previewInputTrace.push({ inputType: event.inputType, data: event.data, html: root.innerHTML });
+    }), { once: false });
+  })()`));
 
   try {
+    const initialViewState = await js(`(() => ({
+      editing: window.__jmd.previewEditor.enabled,
+      layout: document.getElementById('status-layout').textContent,
+      mode: document.getElementById('status-mode').textContent,
+      inStatusbar: document.getElementById('status-layout').parentElement.id === 'statusbar',
+      previewFocused: document.activeElement === document.getElementById('preview'),
+      editingBlock: document.querySelector('#preview > p')?.tagName,
+    }))()`);
+    check('view state is shown in the status bar',
+      initialViewState.inStatusbar && ['Editor', 'Split', 'Preview'].includes(initialViewState.layout),
+      JSON.stringify(initialViewState));
+    check('preview editing is enabled by default',
+      initialViewState.editing && initialViewState.mode === 'Preview editing',
+      JSON.stringify(initialViewState));
+    check('an untitled document starts focused at a plain preview paragraph',
+      initialViewState.previewFocused && initialViewState.editingBlock === 'P',
+      JSON.stringify(initialViewState));
+
+    const startsBlank = await js(`window.__jmd.editor.getValue() === '' &&
+      document.getElementById('preview').textContent === ''`);
+    check('a normal launch starts with an empty document', startsBlank);
+    const gutters = await js(`document.querySelectorAll('.cm-lineNumbers .cm-gutterElement').length`);
+    check('the editor shows line numbers', gutters >= 1, String(gutters));
+
+    // Markdown prefixes typed into the rendered pane act like input rules.
+    await focusEmptyPreview();
+    await nativeText('# ');
+    const headingRule = await js(`(() => ({
+      tag: document.querySelector('#preview > :first-child')?.tagName,
+      emptyBorder: getComputedStyle(document.querySelector('#preview > :first-child')).borderBottomColor,
+      html: document.getElementById('preview').innerHTML,
+      trace: window.__previewInputTrace,
+    }))()`);
+    await nativeText('Typed heading');
+    await wait(600);
+    const headingSource = await js(`window.__jmd.editor.getValue()`);
+    check('typing # in Preview creates a heading without an empty underline',
+      headingRule.tag === 'H1' && headingRule.emptyBorder === 'rgba(0, 0, 0, 0)' && headingSource === '# Typed heading',
+      JSON.stringify({ headingRule, headingSource }));
+
+    const styleCancellation = await js(`(async () => {
+      window.__jmd.loadDocument(null, '# Typed heading');
+      const root = document.getElementById('preview');
+      const heading = root.querySelector('h1');
+      heading.replaceChildren(document.createElement('br'));
+      const range = document.createRange();
+      range.setStart(heading, 0);
+      range.collapse(true);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      heading.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+      await new Promise(resolve => setTimeout(resolve, 450));
+      return { tag: root.firstElementChild?.tagName, source: window.__jmd.editor.getValue() };
+    })()`);
+    check('deleting all heading text cancels the heading style',
+      styleCancellation.tag === 'P' && styleCancellation.source === '', JSON.stringify(styleCancellation));
+
+    const inlineCodeExit = await js(`(() => {
+      window.__jmd.loadDocument(null, '');
+      const root = document.getElementById('preview');
+      const p = document.createElement('p');
+      p.textContent = '\`code\`';
+      root.appendChild(p);
+      const range = document.createRange();
+      range.selectNodeContents(p);
+      range.collapse(false);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      p.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+      document.execCommand('insertText', false, ' plain');
+      return {
+        html: root.firstElementChild?.innerHTML,
+        code: root.querySelector('code')?.textContent,
+        text: root.firstElementChild?.textContent,
+      };
+    })()`);
+    await wait(600);
+    const inlineCodeSource = await js(`window.__jmd.editor.getValue()`);
+    check('closing backtick exits inline-code formatting',
+      inlineCodeExit.code === 'code' && inlineCodeSource === '\`code\` plain',
+      JSON.stringify({ ...inlineCodeExit, source: inlineCodeSource }));
+
+    const deletionBehavior = await js(`(async () => {
+      const root = document.getElementById('preview');
+      const selectAllAndDelete = () => {
+        root.focus();
+        document.execCommand('selectAll', false);
+        document.execCommand('delete', false);
+      };
+
+      window.__jmd.loadDocument(null, '# Delete me');
+      selectAllAndDelete();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const heading = { tag: root.firstElementChild?.tagName, source: window.__jmd.editor.getValue() };
+
+      window.__jmd.loadDocument(null, '\`Delete me\`');
+      selectAllAndDelete();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const code = { tag: root.firstElementChild?.tagName, source: window.__jmd.editor.getValue() };
+
+      document.execCommand('insertText', false, 'normal');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return {
+        heading,
+        code,
+        resumedTag: root.firstElementChild?.tagName,
+        resumedCode: !!root.querySelector('code'),
+        resumedSource: window.__jmd.editor.getValue(),
+      };
+    })()`);
+    check('select-all deletion resets heading and inline-code styles',
+      deletionBehavior.heading.tag === 'P' && deletionBehavior.heading.source === '' &&
+      deletionBehavior.code.tag === 'P' && deletionBehavior.code.source === '' &&
+      deletionBehavior.resumedTag === 'P' && !deletionBehavior.resumedCode &&
+      deletionBehavior.resumedSource === 'normal', JSON.stringify(deletionBehavior));
+
+    await focusEmptyPreview();
+    await nativeText('- ');
+    const caretInItem = await js(`getSelection().anchorNode?.parentElement?.closest?.('li') != null ||
+      getSelection().anchorNode?.closest?.('li') != null`);
+    await nativeText('alpha');
+    await nativeKey('Enter');
+    await nativeText('beta');
+    await wait(500);
+    const afterTyping = await js(`(() => {
+      const root = document.getElementById('preview');
+      return {
+        lists: root.querySelectorAll(':scope > ul').length,
+        items: [...root.querySelectorAll(':scope > ul > li')].map(li => li.textContent),
+        source: window.__jmd.editor.getValue(),
+      };
+    })()`);
+    wc.selectAll();
+    await nativeKey('Backspace');
+    await wait(500);
+    const afterDelete = await js(`(() => {
+      const root = document.getElementById('preview');
+      return {
+        tag: root.firstElementChild?.tagName,
+        children: root.children.length,
+        text: root.textContent,
+        source: window.__jmd.editor.getValue(),
+      };
+    })()`);
+    const listEditing = { caretInItem, afterTyping, afterDelete };
+    check('typing a two-item list creates one list without duplicated items',
+      listEditing.caretInItem && listEditing.afterTyping.lists === 1 &&
+      JSON.stringify(listEditing.afterTyping.items) === JSON.stringify(['alpha', 'beta']) &&
+      listEditing.afterTyping.source === '- alpha\n- beta', JSON.stringify(listEditing));
+    check('select-all deletion completely clears a list and returns to a paragraph',
+      listEditing.afterDelete.tag === 'P' && listEditing.afterDelete.children === 1 &&
+      listEditing.afterDelete.text === '' && listEditing.afterDelete.source === '',
+      JSON.stringify(listEditing.afterDelete));
+
+    // ------------------------------------ typing in the Preview-only layout
+    // Everything below drives the real key pipeline (not execCommand) with the
+    // preview alone on screen, which is how in-preview editing is actually
+    // used. Each case ends by reading back the markdown source, because the
+    // source is what gets saved: a preview that looks right over a source that
+    // has grown a duplicate or a stray marker is still a broken edit.
+    const previewCase = async ({ source, select, at = 'end', span, steps }) => {
+      grabFocus();
+      await js(`(() => {
+        window.__jmd.setLayout('preview');
+        window.__jmd.loadDocument(null, ${JSON.stringify(source)});
+        const root = document.getElementById('preview');
+        root.focus();
+        const range = document.createRange();
+        ${span ? `
+        range.setStart(root.children[${span[0]}].firstChild, ${span[1]});
+        range.setEnd(root.children[${span[2]}].firstChild, ${span[3]});` : `
+        range.selectNodeContents(${select ? `root.querySelector(${JSON.stringify(select)})` : 'root.firstElementChild'});
+        range.collapse(${at === 'start'});`}
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+      })()`);
+      await wait(150);
+      for (const step of steps) {
+        if (step === 'blur') {
+          // A real window switch, which blurs the contenteditable underneath.
+          win.blur();
+          await wait(300);
+          grabFocus();
+          await wait(300);
+          continue;
+        }
+        if (step === 'Enter' || step === 'Tab' || step === 'Backspace') await nativeKey(step);
+        else if (step === 'Undo') await nativeKey('Z', ['cmd']);
+        else if (step === 'pause') await wait(600);
+        else if (step.startsWith('insert:')) {
+          await js(`document.execCommand('insertText', false, ${JSON.stringify(step.slice(7))})`);
+          await wait(60);
+        } else if (step.startsWith('slow:')) {
+          for (const char of step.slice(5)) {
+            grabFocus();
+            await nativeText(char);
+            await wait(420);
+          }
+        } else await nativeText(step);
+      }
+      await wait(700);
+      return js(`(() => {
+        const root = document.getElementById('preview');
+        const anchor = getSelection().anchorNode;
+        const el = anchor?.nodeType === 1 ? anchor : anchor?.parentElement;
+        let block = el;
+        while (block && block.parentElement !== root) block = block.parentElement;
+        return {
+          source: window.__jmd.editor.getValue(),
+          html: root.innerHTML,
+          strong: !!root.querySelector('strong'),
+          quote: !!root.querySelector('blockquote'),
+          caretBlock: block ? [...root.children].indexOf(block) : -1,
+          caretText: el?.textContent ?? null,
+          focused: document.activeElement === root,
+        };
+      })()`);
+    };
+
+    // Pressing Enter creates a block Markdown cannot spell. Committing used to
+    // re-render it away and drop the caret at the end of the previous line, so
+    // the next thing typed landed back on the line the user had just left.
+    let pc = await previewCase({ source: '', steps: ['aaa', 'Enter', 'bbb'] });
+    check('Enter keeps the caret in the new paragraph',
+      pc.source === 'aaa\n\nbbb' && pc.caretBlock === 1 && pc.caretText === 'bbb', JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['aaa', 'pause', 'Enter', 'pause', 'bbb'] });
+    check('Enter keeps the caret after the edit has already been committed',
+      pc.source === 'aaa\n\nbbb' && pc.caretBlock === 1 && pc.caretText === 'bbb', JSON.stringify(pc));
+
+    pc = await previewCase({
+      source: '# Doc\n\nfirst\n\n- one\n- two\n', select: 'p', steps: [' xyz', 'Enter', 'second'],
+    });
+    check('Enter mid-document starts a paragraph instead of typing into the next block',
+      pc.source === '# Doc\n\nfirst xyz\n\nsecond\n\n- one\n- two\n' && pc.caretText === 'second',
+      JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['x', 'Enter', 'Enter', 'Enter', 'y'] });
+    check('repeated Enters do not write blank-looking lines into the source',
+      pc.source === 'x\n\ny', JSON.stringify(pc));
+
+    // Leaving a list used to splice the list back in over a range one line
+    // short of the one it came from, copying an item on every commit.
+    pc = await previewCase({
+      source: '', steps: ['- alpha', 'Enter', 'beta', 'Enter', 'Enter', 'tail'],
+    });
+    check('leaving a list with Enter does not duplicate its items',
+      pc.source === '- alpha\n- beta\n\ntail', JSON.stringify(pc));
+
+    // Leaving a list item that ended in inline markup used to hand the new block
+    // the browser's own formatting wrappers — <font> after `code`, <i> after
+    // emphasis. The first stopped every input rule from firing, so the next
+    // `a` stayed literal and reached the source escaped as \`a\`; the second
+    // turned plain typing into italics nobody asked for.
+    pc = await previewCase({ source: '', steps: ['- `a`', 'Enter', 'Enter', '`a`'] });
+    check('inline code still renders after leaving a list',
+      pc.source === '- `a`\n\n`a`' && (pc.html.match(/<code>a<\/code>/g) ?? []).length === 2,
+      JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['- **b**', 'Enter', 'Enter', 'x'] });
+    check('text typed after leaving an emphasised item is not italicised',
+      pc.source === '- **b**\n\nx' && !/<em>|<i>/.test(pc.html), JSON.stringify(pc));
+
+    // `**b*` is a complete emphasis on its own inside an item, too.
+    pc = await previewCase({ source: '', steps: ['- **b**'] });
+    check('bold typed inside a list item survives its last delimiter',
+      pc.source === '- **b**' && pc.strong, JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['- alpha', 'Enter', 'pause'] });
+    check('an unfinished list item writes no stray marker to the source',
+      pc.source === '- alpha', JSON.stringify(pc));
+
+    pc = await previewCase({ source: 'one\n\ntwo\n', select: 'p:nth-of-type(2)', at: 'start', steps: ['Backspace'] });
+    check('Backspace merges two paragraphs without duplicating either',
+      pc.source === 'onetwo\n', JSON.stringify(pc));
+
+    pc = await previewCase({
+      source: 'one\n\ntwo\n\nthree\n', select: 'p:nth-of-type(2)',
+      steps: ['Backspace', 'Backspace', 'Backspace', 'Backspace'],
+    });
+    check('deleting a middle paragraph removes exactly its lines',
+      pc.source === 'one\n\nthree\n', JSON.stringify(pc));
+
+    // `**bold**` is typed through `**bold*`, which is a complete emphasis on its
+    // own: rendering there stranded the caret inside an <em> mid-word.
+    pc = await previewCase({ source: '', steps: ['a **b** c'] });
+    check('bold survives being typed one delimiter at a time',
+      pc.source === 'a **b** c' && pc.strong, JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['> quoted', 'Enter', 'more'] });
+    check('a quote typed with > stays a quote',
+      pc.source === '> quoted\n>\n> more' && pc.quote, JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['- one', 'Enter', 'Tab', 'nested'] });
+    check('Tab nests a list item instead of moving focus out of the preview',
+      pc.source === '- one\n  - nested' && pc.focused, JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['1. one', 'Enter', 'two'] });
+    check('an ordered list keeps numbering', pc.source === '1. one\n2. two', JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['- [ ] todo'] });
+    check('a task item round-trips with a single space after the box',
+      pc.source === '- [ ] todo', JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['insert:こんにちは', 'Enter', 'insert:世界'] });
+    check('multi-byte text splits into paragraphs like any other',
+      pc.source === 'こんにちは\n\n世界', JSON.stringify(pc));
+
+    // Typing this slowly commits between every keystroke, so each one lands on
+    // freshly re-stamped blocks — the state that used to move the caret.
+    pc = await previewCase({ source: '# T\n\nalpha\n\n- x\n', select: 'p', steps: ['slow: xy'] });
+    check('typing slower than the commit debounce still lands in one place',
+      pc.source === '# T\n\nalpha xy\n\n- x\n', JSON.stringify(pc));
+
+    pc = await previewCase({ source: 'one\n\ntwo\n\nthree\n', span: [0, 1, 2, 2], steps: ['X'] });
+    check('typing over a selection spanning blocks replaces exactly the selection',
+      pc.source === 'oXree\n', JSON.stringify(pc));
+
+    // Read-only blocks cannot hold a caret, so a document ending in one needs a
+    // paragraph after it or there is no way to keep writing in the preview.
+    pc = await previewCase({
+      source: '```js\nlet a;\n```\n', select: ':scope > :last-child', steps: ['below'],
+    });
+    check('a document ending in a code block can still be written past',
+      pc.source === '```js\nlet a;\n```\n\nbelow\n', JSON.stringify(pc));
+
+    pc = await previewCase({ source: '| A | B |\n| - | - |\n| 1 | 2 |\n', select: 'tbody td', steps: ['9'] });
+    check('a table cell edit rewrites only that cell',
+      pc.source === '| A | B |\n| --- | --- |\n| 19 | 2 |\n', JSON.stringify(pc));
+
+    pc = await previewCase({ source: 'alpha\n', steps: [' beta', 'pause', 'Undo'] });
+    check('undo in the preview rolls the source back', pc.source === 'alpha\n', JSON.stringify(pc));
+
+    // Switching away and back must not rebuild the block being written in.
+    pc = await previewCase({ source: '', steps: ['aaa', 'Enter', 'blur', 'bbb'] });
+    check('leaving the window and coming back keeps the caret where it was',
+      pc.source === 'aaa\n\nbbb', JSON.stringify(pc));
+
+    pc = await previewCase({ source: '', steps: ['a **b** and `c` end'] });
+    check('a second piece of inline syntax in one paragraph still renders',
+      pc.source === 'a **b** and `c` end' && pc.strong && /<code>c<\/code>/.test(pc.html),
+      JSON.stringify(pc));
+
+    // markdown-it counts the blank line after a list as part of the list, so
+    // editing an item used to swallow it and swallow the next paragraph with it.
+    pc = await previewCase({ source: '- one\n- two\n\ntail\n', select: 'li', steps: [' x'] });
+    check('editing a list keeps the blank line that ends it',
+      pc.source === '- one x\n- two\n\ntail\n', JSON.stringify(pc));
+
+    // One long session: the failures above only showed up in combination.
+    pc = await previewCase({
+      source: '',
+      steps: [
+        '# Notes', 'Enter', 'Shipped **today**. See `CHANGELOG`.', 'Enter',
+        '## Fixes', 'Enter', '- caret stays', 'Enter', 'items stay unique', 'Enter',
+        'Enter', 'Thanks.',
+      ],
+    });
+    check('a whole document typed in the preview matches what was typed',
+      pc.source === '# Notes\n\nShipped **today**. See `CHANGELOG`.\n\n## Fixes\n\n' +
+        '- caret stays\n- items stay unique\n\nThanks.', JSON.stringify(pc));
+
+    await shot(win, '03-preview-typing');
+    await js(`window.__jmd.setLayout('split')`);
+    await wait(200);
+
+    /**
+     * Type into the source pane, starting at the end of `source` — or at the
+     * end of its 1-based line `at`, when the caret belongs mid-document.
+     */
+    const sourceCase = async (source, steps, at = null) => {
+      grabFocus();
+      await js(`(() => {
+        window.__jmd.setLayout('split');
+        window.__jmd.loadDocument(null, ${JSON.stringify(source)});
+        const view = window.__jmd.editor.view;
+        const doc = view.state.doc;
+        view.dispatch({ selection: { anchor: ${at === null ? 'doc.length' : `doc.line(${at}).to`} } });
+        window.__jmd.editor.focus();
+      })()`);
+      await wait(250);
+      for (const step of steps) {
+        if (['Enter', 'Backspace', 'Tab'].includes(step)) await nativeKey(step);
+        else await nativeText(step);
+        await wait(120);
+      }
+      await wait(300);
+      return js(`window.__jmd.editor.getValue()`);
+    };
+
+    // Enter on an empty item has to leave the list *and* leave a blank line
+    // behind it. Without one the next thing typed is a lazy continuation, which
+    // Markdown folds straight back into the item above — the list looked
+    // finished in the source and was still a bullet in the preview.
+    let src = await sourceCase('', ['- a', 'Enter', 'Enter', 'a']);
+    check('Enter on an empty list item leaves a one-item list', src === '- a\n\na', JSON.stringify(src));
+
+    src = await sourceCase('', ['- a', 'Enter', 'b', 'Enter', 'Enter', 'c']);
+    check('text typed after leaving a list is a paragraph, not the last item',
+      src === '- a\n- b\n\nc', JSON.stringify(src));
+
+    src = await sourceCase('', ['1. a', 'Enter', 'b', 'Enter', 'Enter', 'c']);
+    check('leaving an ordered list works the same way', src === '1. a\n2. b\n\nc', JSON.stringify(src));
+
+    src = await sourceCase('', ['- a', 'Enter', 'Tab', 'b', 'Enter', 'Enter', 'c']);
+    check('Enter on an empty nested item outdents one level instead',
+      src === '- a\n  - b\n- c', JSON.stringify(src));
+
+    src = await sourceCase('', ['- a', 'Enter', 'b']);
+    check('Enter on an item with text still continues the list',
+      src === '- a\n- b', JSON.stringify(src));
+
+    // Inside a fence a marker is code, so Enter must not eat the line it is on.
+    src = await sourceCase('```js\n\n```\n', ['- ', 'Enter', 'x'], 2);
+    check('a list marker inside a code fence is left alone',
+      /^```js\n- \n\s*x\n```\n$/.test(src), JSON.stringify(src));
+
+    const syntaxRules = await js(`(async () => {
+      const cases = [
+        ['inline code', '\`code\`', 'code'],
+        ['bold', '**bold**', 'strong'],
+        ['italic', '*italic*', 'em'],
+        ['strike', '~~strike~~', 's'],
+        ['mark', '==mark==', 'mark'],
+        ['subscript', 'H~2~O', 'sub'],
+        ['superscript', 'x^2^', 'sup'],
+        ['link', '[OpenAI](https://openai.com)', 'a[href]'],
+        ['image', '![dot](data:image/png;base64,iVBORw0KGgo=)', 'img'],
+        ['math', '$x^2$', '.math-inline'],
+        ['quote', '> quoted', 'blockquote'],
+        ['rule', '---', 'hr'],
+        ['task', '- [ ] task', '.task-checkbox'],
+        ['definition', 'Term\\n: meaning', 'dl'],
+        ['table', '| A | B |\\n| - | - |\\n| 1 | 2 |', 'table'],
+        ['fence', '\`\`\`js\\nconst x = 1;\\n\`\`\`', 'pre code'],
+        ['footnote', 'note[^a]\\n\\n[^a]: text', '.footnotes'],
+        ['raw html', '<aside>hello</aside>', '.raw-html'],
+      ];
+      const results = {};
+      for (const [name, markdown, selector] of cases) {
+        window.__jmd.loadDocument(null, '');
+        const root = document.getElementById('preview');
+        const p = document.createElement('p');
+        p.textContent = markdown;
+        root.appendChild(p);
+        const range = document.createRange();
+        range.selectNodeContents(p);
+        range.collapse(false);
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        p.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+        results[name] = !!root.querySelector(selector);
+      }
+      return results;
+    })()`);
+    check('Preview applies every supported Markdown notation while typing',
+      Object.values(syntaxRules).every(Boolean), JSON.stringify(syntaxRules));
+
+    // Load a rich fixture for the renderer/editor regression checks below.
+    await js(`(() => { window.__jmd.loadDocument(null, [
+      '# jmd', '', '**Bold**, *italic*, ==highlighted==, H~2~O and [link](https://example.com).', '',
+      '- [x] done', '- [ ] todo', '', '| A | B |', '| - | - |', '| x | y |', '',
+      'Footnote[^1]', '', '[^1]: note', '', 'Inline $e^{i\\\\pi}+1=0$.', '',
+      '$$', '\\\\int_0^1 x dx', '$$', '', '~~~python', 'for x in range(2):', '    pass', '~~~'
+    ].join('\\n')); })()`);
+    await wait(500);
+
     // ---------------------------------------------------------- rendering
     const rendered = await js(`(() => {
       const p = document.getElementById('preview');
@@ -66,15 +569,13 @@ module.exports = async function run(win, { app }) {
 
     // ------------------------------------------------------------- themes
     for (const theme of ['nord', 'paper', 'dracula']) {
-      await js(`document.getElementById('theme-select').value='${theme}';
-                document.getElementById('theme-select').dispatchEvent(new Event('change'));`);
+      await js(`window.__jmd.setTheme('${theme}')`);
       await wait(250);
       await shot(win, `02-theme-${theme}`);
     }
     const themeApplied = await js(`document.documentElement.dataset.theme`);
     check('theme switching works', themeApplied === 'dracula', themeApplied);
-    await js(`document.getElementById('theme-select').value='github';
-              document.getElementById('theme-select').dispatchEvent(new Event('change'));`);
+    await js(`window.__jmd.setTheme('github')`);
     await wait(200);
 
     // ------------------------------------------------- live source editing
@@ -276,6 +777,7 @@ module.exports = async function run(win, { app }) {
 
     // ---------------------------------------------------------- scroll sync
     await js(`(() => {
+      window.__jmd.setLayout('split');
       const view = window.__jmd.editor.view;
       const lines = [];
       for (let i = 0; i < 60; i++) lines.push('## Section ' + i, '', 'Body text for section ' + i + '.', '');
@@ -319,12 +821,39 @@ module.exports = async function run(win, { app }) {
     await wait(600);
     const savedText = fs.existsSync(savePath) ? fs.readFileSync(savePath, 'utf8') : '';
     check('save writes the document to disk', savedText.includes('Body line.'), JSON.stringify(savedText));
-    const clean = await js(`(() => ({
-      dirtyHidden: document.getElementById('dirty-dot').hidden,
-      name: document.getElementById('doc-name').textContent,
-    }))()`);
+    const clean = await js(`(() => {
+      const tab = document.querySelector('#tabs .tab.is-active');
+      return {
+        dirtyHidden: !tab.classList.contains('is-dirty'),
+        name: tab.querySelector('.tab-name').textContent,
+        path: document.getElementById('doc-path-text').textContent,
+        pathShown: !document.getElementById('doc-path').hidden,
+        pathInHeader: document.getElementById('doc-path').parentElement.id === 'titlebar',
+      };
+    })()`);
     check('saving clears the dirty marker', clean.dirtyHidden === true && clean.name === 'saved.md',
       JSON.stringify(clean));
+    check('the absolute path is shown in the header',
+      clean.pathShown && clean.pathInHeader && path.isAbsolute(clean.path) && clean.path === savePath,
+      JSON.stringify(clean));
+
+    const droppedPath = path.join(OUT, 'imgtest', 'dropped.md');
+    fs.writeFileSync(droppedPath, '# Opened by drop\n', 'utf8');
+    const dropped = await js(`(async () => {
+      const before = window.__jmd.tabs.length;
+      const opened = await window.__jmd.openDroppedPaths([${JSON.stringify(droppedPath)}]);
+      const result = {
+        opened,
+        added: window.__jmd.tabs.length === before + 1,
+        path: window.__jmd.activeTab.path,
+        text: window.__jmd.editor.getValue(),
+      };
+      await window.__jmd.closeTab(window.__jmd.activeTab);
+      return result;
+    })()`);
+    check('a dropped Markdown file opens in a tab',
+      dropped.opened === 1 && dropped.added && dropped.path === droppedPath && dropped.text === '# Opened by drop\n',
+      JSON.stringify(dropped));
 
     const exported = await js(`(() => {
       const view = window.__jmd.editor.view;
@@ -338,6 +867,155 @@ module.exports = async function run(win, { app }) {
       exported.includes('<!doctype html>') && exported.includes('data-theme=') &&
       exported.includes('katex') && exported.includes('--bg:'),
       `${exported.length} bytes`);
+
+    // ---------------------------------------------------------------- tabs
+    const press = (accel) => {
+      const parts = accel.split('+');
+      const key = parts.pop();
+      const code = /^\d$/.test(key) ? `Digit${key}` : /^[A-Z]$/.test(key) ? `Key${key}` : key;
+      const init = {
+        key, code, bubbles: true, cancelable: true,
+        metaKey: parts.includes('Cmd'), ctrlKey: parts.includes('Ctrl'),
+        altKey: parts.includes('Alt'), shiftKey: parts.includes('Shift'),
+      };
+      return js(`document.body.dispatchEvent(new KeyboardEvent('keydown', ${JSON.stringify(init)}))`);
+    };
+    const tabState = () => js(`(() => {
+      const j = window.__jmd;
+      return {
+        count: j.tabs.length,
+        dom: document.querySelectorAll('#tabs .tab').length,
+        active: j.activeTab && (j.activeTab.path ? j.activeTab.path.split('/').pop() : 'Untitled'),
+        text: j.editor.getValue().split('\\n')[0],
+        layout: document.getElementById('panes').className,
+      };
+    })()`);
+
+    await js(`(() => {
+      window.__jmd.newTab({ path: '/tmp/jmd-alpha.md', content: '# Alpha\\n' });
+      window.__jmd.newTab({ path: '/tmp/jmd-beta.md', content: '# Beta\\n' });
+    })()`);
+    await wait(300);
+    let state = await tabState();
+    check('tabs open alongside each other', state.count === 3 && state.dom === 3, JSON.stringify(state));
+    check('the newest tab becomes active', state.active === 'jmd-beta.md', JSON.stringify(state));
+
+    await press('Cmd+2');
+    await wait(250);
+    state = await tabState();
+    check('⌘2 switches to the second tab',
+      state.active === 'jmd-alpha.md' && state.text === '# Alpha', JSON.stringify(state));
+
+    await press('Cmd+Tab');
+    await wait(250);
+    state = await tabState();
+    check('⌘⇥ moves to the next tab', state.active === 'jmd-beta.md', JSON.stringify(state));
+
+    await press('Cmd+Shift+Tab');
+    await wait(250);
+    state = await tabState();
+    check('⌘⇧⇥ moves back', state.active === 'jmd-alpha.md', JSON.stringify(state));
+
+    // macOS normally reserves ⌘⇥ before an app can see it, so ⌃⇥ is also a
+    // practical default when using a physical keyboard.
+    await press('Ctrl+Tab');
+    await wait(250);
+    state = await tabState();
+    check('⌃⇥ is also available for next tab', state.active === 'jmd-beta.md', JSON.stringify(state));
+    await press('Cmd+Shift+Tab');
+    await wait(250);
+
+    // Each tab keeps its own text and undo history.
+    await js(`(() => {
+      const view = window.__jmd.editor.view;
+      view.dispatch({ changes: { from: view.state.doc.length, insert: 'edited in alpha\\n' } });
+    })()`);
+    await wait(300);
+    await press('Cmd+3');
+    await wait(250);
+    await press('Cmd+2');
+    await wait(250);
+    const kept = await js(`window.__jmd.editor.getValue()`);
+    check('a tab keeps its own document across switches', kept.includes('edited in alpha'),
+      JSON.stringify(kept));
+
+    await shot(win, '06-tabs');
+
+    // Layout moved to ⌘⌃1/2/3 to free the digits for tabs.
+    await press('Cmd+Ctrl+1');
+    await wait(250);
+    state = await tabState();
+    check('⌘⌃1 shows the editor only', state.layout === 'layout-editor', state.layout);
+    check('the status bar reports the current layout',
+      await js(`document.getElementById('status-layout').textContent`) === 'Editor');
+    await press('Cmd+Ctrl+3');
+    await wait(250);
+    state = await tabState();
+    check('⌘⌃3 shows the preview only', state.layout === 'layout-preview', state.layout);
+    await press('Cmd+Ctrl+2');
+    await wait(250);
+    state = await tabState();
+    check('⌘⌃2 restores the split', state.layout === 'layout-split', state.layout);
+
+    // Rebinding is what the shortcut settings do under the hood.
+    await js(`(() => {
+      window.__jmd.shortcuts.assign('tab.next', 'Cmd+Alt+K');
+      window.__jmd.activateTab(window.__jmd.tabs[0]);
+    })()`);
+    await wait(200);
+    await press('Cmd+Alt+K');
+    await wait(250);
+    state = await tabState();
+    check('a rebound shortcut takes effect immediately',
+      state.active === 'jmd-alpha.md', JSON.stringify(state));
+
+    const closed = await js(`(async () => {
+      // Beta is untouched, so closing it must not raise a save prompt.
+      await window.__jmd.closeTab(window.__jmd.tabs[2]);
+      return { count: window.__jmd.tabs.length, dom: document.querySelectorAll('#tabs .tab').length };
+    })()`);
+    check('closing a clean tab removes it', closed.count === 2 && closed.dom === 2,
+      JSON.stringify(closed));
+
+    // ------------------------------------------------------ settings panel
+    await press('Cmd+,');
+    await wait(300);
+    const settingsOpen = await js(`(() => ({
+      open: !document.getElementById('settings').hidden,
+      skins: document.querySelectorAll('#skin-grid .skin').length,
+      layouts: document.querySelectorAll('#layout-setting [data-layout]').length,
+      rows: document.querySelectorAll('.shortcut-row').length,
+    }))()`);
+    check('the settings dialog opens',
+      settingsOpen.open && settingsOpen.skins >= 6 && settingsOpen.layouts === 3,
+      JSON.stringify(settingsOpen));
+
+    await js(`document.querySelector('.nav-btn[data-section="shortcuts"]').click()`);
+    await wait(200);
+    const shortcutRows = await js(`(() => ({
+      rows: document.querySelectorAll('.shortcut-row').length,
+      chips: [...document.querySelectorAll('.shortcut-row')][0].querySelectorAll('.chip').length,
+      first: document.querySelector('.shortcut-row .chip')?.textContent ?? '',
+    }))()`);
+    check('every action is listed with its keys', shortcutRows.rows >= 15 && shortcutRows.chips >= 2,
+      JSON.stringify(shortcutRows));
+    await shot(win, '07-settings-shortcuts');
+
+    await js(`document.querySelector('.nav-btn[data-section="appearance"]').click();
+              window.__jmd.setAccent('#bf3989');`);
+    await wait(250);
+    const accent = await js(`(() => ({
+      accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
+      stored: window.__jmd.settings.accent,
+    }))()`);
+    check('a custom accent colour tints the skin',
+      accent.accent === '#bf3989' && accent.stored === '#bf3989', JSON.stringify(accent));
+    await shot(win, '08-settings-appearance');
+
+    await js(`window.__jmd.setAccent(null); window.__jmd.settingsPanel.close();`);
+    await wait(200);
+    const reset = await js(`document.documentElement.style.getPropertyValue('--accent')`);
+    check('the accent can be handed back to the skin', reset === '', JSON.stringify(reset));
   } catch (error) {
     check('smoke run completed without exception', false, String(error && error.stack ? error.stack : error));
   }

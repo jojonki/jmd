@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 /**
  * Runs in a sandboxed preload, so Node's `path` is unavailable — the few path
@@ -41,13 +41,23 @@ const listen = (channel) => (handler) => {
 
 contextBridge.exposeInMainWorld('jmd', {
   platform: process.platform,
-
   readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
+  /** Safely recover a native path while the value is still a real File. */
+  droppedFilePath: (file) => webUtils.getPathForFile(file),
   save: (payload) => ipcRenderer.invoke('file:save', payload),
   saveAs: (payload) => ipcRenderer.invoke('file:save-as', payload),
   exportHtml: (payload) => ipcRenderer.invoke('file:export-html', payload),
   confirmClose: (name) => ipcRenderer.invoke('dialog:confirm-close', name),
   openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+  /** Reveal a file in Finder / Explorer / the desktop's file manager. */
+  showInFolder: (filePath) => ipcRenderer.invoke('shell:show-item', filePath),
+
+  /**
+   * Hand the menu the user's current key bindings. The menu only *displays*
+   * them on macOS — the renderer is what actually dispatches (see
+   * `src/shortcuts.js`), so a rebind takes effect without a restart.
+   */
+  setMenuAccelerators: (map) => ipcRenderer.send('menu:accelerators', map),
 
   setTitle: (title) => ipcRenderer.send('window:set-title', title),
   setEdited: (edited) => ipcRenderer.send('window:set-edited', edited),
@@ -70,7 +80,7 @@ contextBridge.exposeInMainWorld('jmd', {
   onMenuSaveAs: listen('menu:save-as'),
   onMenuExportHtml: listen('menu:export-html'),
   onMenuFind: listen('menu:find'),
-  onMenuLayout: listen('menu:layout'),
   onMenuTheme: listen('menu:theme'),
-  onMenuToggleWysiwyg: listen('menu:toggle-wysiwyg'),
+  /** Menu items that map onto a configurable action id. */
+  onMenuAction: listen('menu:action'),
 });

@@ -87,6 +87,25 @@ function send(channel, ...args) {
   if (win) win.webContents.send(channel, ...args);
 }
 
+/**
+ * Accelerators the renderer told us about, keyed by action id. They are shown
+ * in the menu but (on macOS) deliberately not registered: the renderer owns
+ * dispatch so the user can rebind them at runtime.
+ * @type {Record<string, string>}
+ */
+let accelerators = {};
+
+/** A menu item that fires a configurable action in the renderer. */
+function actionItem(label, id, extra = {}) {
+  return {
+    label,
+    ...(accelerators[id] ? { accelerator: accelerators[id] } : {}),
+    registerAccelerator: false,
+    click: () => send('menu:action', id),
+    ...extra,
+  };
+}
+
 function buildMenu() {
   const themes = [
     ['github', 'GitHub Light'],
@@ -105,6 +124,8 @@ function buildMenu() {
           submenu: [
             { role: 'about' },
             { type: 'separator' },
+            actionItem('Settings…', 'app.settings'),
+            { type: 'separator' },
             { role: 'services' },
             { type: 'separator' },
             { role: 'hide' },
@@ -118,15 +139,20 @@ function buildMenu() {
     {
       label: 'File',
       submenu: [
-        { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => createWindow() },
+        actionItem('New Tab', 'tab.new'),
+        { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: () => createWindow() },
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => openFileDialog() },
         { type: 'separator' },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => send('menu:save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('menu:save-as') },
         { type: 'separator' },
         { label: 'Export HTML…', click: () => send('menu:export-html') },
+        actionItem(isMac ? 'Reveal in Finder' : 'Show in File Manager', 'file.reveal'),
         { type: 'separator' },
-        isMac ? { role: 'close' } : { role: 'quit' },
+        actionItem('Close Tab', 'tab.close'),
+        isMac
+          ? { role: 'close', label: 'Close Window', accelerator: 'Cmd+Shift+W' }
+          : { role: 'quit' },
       ],
     },
     {
@@ -146,15 +172,11 @@ function buildMenu() {
     {
       label: 'View',
       submenu: [
-        { label: 'Editor + Preview', accelerator: 'CmdOrCtrl+1', click: () => send('menu:layout', 'split') },
-        { label: 'Editor Only', accelerator: 'CmdOrCtrl+2', click: () => send('menu:layout', 'editor') },
-        { label: 'Preview Only', accelerator: 'CmdOrCtrl+3', click: () => send('menu:layout', 'preview') },
+        actionItem('Editor Only', 'layout.editor'),
+        actionItem('Editor + Preview', 'layout.split'),
+        actionItem('Preview Only', 'layout.preview'),
         { type: 'separator' },
-        {
-          label: 'Edit In Preview',
-          accelerator: 'CmdOrCtrl+E',
-          click: () => send('menu:toggle-wysiwyg'),
-        },
+        actionItem('Edit In Preview', 'view.wysiwyg'),
         { type: 'separator' },
         {
           label: 'Theme',
@@ -174,9 +196,14 @@ function buildMenu() {
     },
     {
       role: 'window',
-      submenu: isMac
-        ? [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
-        : [{ role: 'minimize' }, { role: 'close' }],
+      submenu: [
+        actionItem('Next Tab', 'tab.next'),
+        actionItem('Previous Tab', 'tab.prev'),
+        { type: 'separator' },
+        ...(isMac
+          ? [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
+          : [{ role: 'minimize' }, { role: 'close' }]),
+      ],
     },
   ];
 
@@ -199,19 +226,16 @@ async function openFileDialog() {
 }
 
 async function openPath(filePath) {
-  const win = BrowserWindow.getFocusedWindow();
+  const win = BrowserWindow.getFocusedWindow() || [...windows][0];
   if (!win) {
     createWindow(filePath);
     return;
   }
-  // Reuse the focused window only when it holds an untouched empty document.
-  const empty = await win.webContents.executeJavaScript('window.__jmdIsEmpty?.() ?? false').catch(() => false);
-  if (empty) {
-    const content = await fs.readFile(filePath, 'utf8');
-    win.webContents.send('file:opened', { path: filePath, content });
-  } else {
-    createWindow(filePath);
-  }
+  // A window holds tabs now, so an opened file joins the focused one; the
+  // renderer decides whether that means a new tab or an existing one.
+  const content = await fs.readFile(filePath, 'utf8');
+  win.webContents.send('file:opened', { path: filePath, content });
+  win.focus();
 }
 
 // ---------------------------------------------------------------- IPC
@@ -296,6 +320,19 @@ ipcMain.handle('shell:open-external', async (_e, url) => {
   if (/^https?:/.test(url)) await shell.openExternal(url);
 });
 
+ipcMain.handle('shell:show-item', (_e, filePath) => {
+  if (typeof filePath === 'string' && filePath) shell.showItemInFolder(filePath);
+});
+
+// The renderer owns the key bindings; the menu just mirrors them.
+ipcMain.on('menu:accelerators', (_e, map) => {
+  if (!map || typeof map !== 'object') return;
+  const next = JSON.stringify(map);
+  if (next === JSON.stringify(accelerators)) return;
+  accelerators = map;
+  buildMenu();
+});
+
 // ---------------------------------------------------------------- lifecycle
 
 // macOS "Open with" / dock drop
@@ -312,8 +349,16 @@ app.whenReady().then(() => {
   if (isMac && devIcon) app.dock.setIcon(devIcon);
   const cliFile = process.argv.slice(devServer ? 2 : 1).find((a) => /\.(md|markdown|mdown|mkd|txt)$/i.test(a));
   let first;
-  if (pendingFiles.length) pendingFiles.forEach((f) => { first = createWindow(f); });
-  else first = createWindow(cliFile || null);
+  if (pendingFiles.length) {
+    // One window, one tab per file.
+    first = createWindow(pendingFiles[0]);
+    const rest = pendingFiles.slice(1);
+    if (rest.length) {
+      first.webContents.once('did-finish-load', () => rest.forEach((f) => openPath(f)));
+    }
+  } else {
+    first = createWindow(cliFile || null);
+  }
 
   // Development affordance: run a script against the freshly created window
   // (used by `npm run smoke` to drive the UI and capture screenshots).

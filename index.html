@@ -11,24 +11,23 @@
   <body>
     <div id="app">
       <header id="titlebar">
-        <div class="tb-drag"></div>
-        <div class="tb-actions">
-          <span id="doc-name" class="doc-name">Untitled</span>
-          <span id="dirty-dot" class="dirty-dot" hidden>&bull;</span>
-        </div>
+        <button id="doc-path" class="doc-path" type="button" hidden>
+          <svg class="doc-path-icon" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+            <path d="M1.6 12.4V3.6h4.1l1.3 1.6h7.4v7.2a1 1 0 0 1-1 1H2.6a1 1 0 0 1-1-1Z"
+              fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+          </svg>
+          <span id="doc-path-text" class="doc-path-text"></span>
+        </button>
         <div class="tb-drag"></div>
         <div class="tb-controls">
-          <button id="btn-wysiwyg" class="tb-btn" type="button" title="Edit in preview (⌘E)">
-            Edit in preview
-          </button>
-          <div class="seg" role="group" aria-label="Layout">
-            <button class="tb-btn seg-btn" data-layout="editor" type="button" title="Editor only (⌘1)">Editor</button>
-            <button class="tb-btn seg-btn is-active" data-layout="split" type="button" title="Split (⌘2)">Split</button>
-            <button class="tb-btn seg-btn" data-layout="preview" type="button" title="Preview only (⌘3)">Preview</button>
-          </div>
-          <select id="theme-select" class="tb-select" aria-label="Color theme"></select>
+          <button id="btn-settings" class="tb-btn tb-icon" type="button" title="Settings" aria-label="Settings">⚙</button>
         </div>
       </header>
+
+      <nav id="tabbar" class="tabbar" aria-label="Open documents">
+        <div id="tabs" class="tabs" role="tablist"></div>
+        <button id="tab-new" class="tab-new" type="button" title="New tab" aria-label="New tab">+</button>
+      </nav>
 
       <main id="panes" class="layout-split">
         <section id="editor-pane" class="pane"></section>
@@ -39,13 +38,33 @@
       </main>
 
       <footer id="statusbar">
-        <span id="status-mode">Source</span>
+        <span id="status-layout" aria-live="polite">Split</span>
+        <span class="sb-sep"></span>
+        <span id="status-mode" aria-live="polite">Preview editing</span>
         <span class="sb-sep"></span>
         <span id="status-counts"></span>
         <span class="sb-grow"></span>
         <span id="status-msg"></span>
       </footer>
     </div>
+
+    <div id="settings" class="overlay" hidden>
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header class="dialog-head">
+          <h2 id="settings-title">Settings</h2>
+          <button id="settings-close" class="icon-btn" type="button" aria-label="Close settings">×</button>
+        </header>
+        <nav class="dialog-nav">
+          <button class="nav-btn is-active" type="button" data-section="appearance">Appearance</button>
+          <button class="nav-btn" type="button" data-section="shortcuts">Shortcuts</button>
+        </nav>
+        <div class="dialog-body">
+          <section id="pane-appearance" class="settings-pane"></section>
+          <section id="pane-shortcuts" class="settings-pane" hidden></section>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

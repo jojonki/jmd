@@ -1,4 +1,4 @@
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import {
   EditorView,
   keymap,
@@ -7,9 +7,15 @@ import {
   highlightActiveLine,
   rectangularSelection,
   crosshairCursor,
+  lineNumbers,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab, undo, redo } from '@codemirror/commands';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import {
+  markdown,
+  markdownLanguage,
+  insertNewlineContinueMarkupCommand,
+  deleteMarkupBackward,
+} from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import {
   syntaxHighlighting,
@@ -47,6 +53,46 @@ const highlightStyle = HighlightStyle.define([
   { tag: [t.function(t.variableName), t.definition(t.variableName)], color: 'var(--syn-function)' },
   { tag: [t.typeName, t.className], color: 'var(--syn-type)' },
 ]);
+
+/** A line holding a list marker and nothing else, task box included. */
+const EMPTY_ITEM = /^(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]*)?$/;
+
+/**
+ * Enter on an empty top-level list item leaves the list — and leaves a blank
+ * line behind it, because without one the next thing typed is a lazy
+ * continuation that Markdown folds straight back into the item above.
+ * Nested items fall through to the command below, which outdents them a level.
+ */
+const leaveListOnEmptyItem = ({ state, dispatch }) => {
+  const range = state.selection.main;
+  if (!range.empty) return false;
+  // Not inside a code fence, where `- ` is code rather than a list marker.
+  if (!markdownLanguage.isActiveAt(state, range.head, -1) &&
+      !markdownLanguage.isActiveAt(state, range.head, 1)) return false;
+
+  const line = state.doc.lineAt(range.head);
+  if (range.head !== line.to || !EMPTY_ITEM.test(line.text)) return false;
+
+  // The separating blank line is only needed after an item that has text; a
+  // list that starts empty has nothing above to be absorbed into.
+  const previous = line.number > 1 ? state.doc.line(line.number - 1) : null;
+  const insert = previous && /\S/.test(previous.text) ? '\n' : '';
+  dispatch(state.update({
+    changes: { from: line.from, to: line.to, insert },
+    selection: { anchor: line.from + insert.length },
+    userEvent: 'input',
+    scrollIntoView: true,
+  }));
+  return true;
+};
+
+const continueMarkup = insertNewlineContinueMarkupCommand({
+  // Enter on an empty item means "I am done with this list", never "make the
+  // list loose by pushing a blank line above the marker I am standing on".
+  nonTightLists: false,
+});
+
+const markdownEnter = (target) => leaveListOnEmptyItem(target) || continueMarkup(target);
 
 const baseTheme = EditorView.theme({
   '&': {
@@ -121,35 +167,55 @@ export class Editor {
       }
     });
 
-    this.view = new EditorView({
-      parent,
-      state: EditorState.create({
-        doc: '',
-        extensions: [
-          history(),
-          drawSelection(),
-          dropCursor(),
-          indentOnInput(),
-          bracketMatching(),
-          rectangularSelection(),
-          crosshairCursor(),
-          highlightActiveLine(),
-          highlightSelectionMatches(),
-          syntaxHighlighting(highlightStyle),
-          markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: true }),
-          keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
-          EditorView.lineWrapping,
-          baseTheme,
-          updateListener,
-        ],
-      }),
-    });
+    /**
+     * Shared by every document: each tab owns an EditorState built from these,
+     * which is what gives a tab its own undo history and selection.
+     */
+    this.extensions = [
+      lineNumbers(),
+      history(),
+      drawSelection(),
+      dropCursor(),
+      indentOnInput(),
+      bracketMatching(),
+      rectangularSelection(),
+      crosshairCursor(),
+      highlightActiveLine(),
+      highlightSelectionMatches(),
+      syntaxHighlighting(highlightStyle),
+      markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: false }),
+      // The markdown keymap the line above would have installed, with Enter
+      // routed through the list handling in markdownEnter. Same precedence it
+      // uses, so these still win over the default Enter and Backspace.
+      Prec.high(keymap.of([
+        { key: 'Enter', run: markdownEnter },
+        { key: 'Backspace', run: deleteMarkupBackward },
+      ])),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+      EditorView.lineWrapping,
+      baseTheme,
+      updateListener,
+    ];
+
+    this.view = new EditorView({ parent, state: this.createState('') });
 
     this.view.scrollDOM.addEventListener('scroll', () => options.onScroll?.(), { passive: true });
   }
 
   get dom() {
     return this.view.dom;
+  }
+
+  /** A detached state for a document the view is not currently showing. */
+  createState(text) {
+    return EditorState.create({ doc: text, extensions: this.extensions });
+  }
+
+  /** Swap the whole document — history, selection and all — into the view. */
+  setState(state) {
+    this.applyingRemoteEdit = true;
+    this.view.setState(state);
+    this.applyingRemoteEdit = false;
   }
 
   getValue() {
@@ -184,6 +250,11 @@ export class Editor {
     this.view.dispatch({ changes: { from, to, insert: text }, scrollIntoView: false });
     this.applyingRemoteEdit = false;
     return true;
+  }
+
+  /** Number of source lines (an empty document still has one). */
+  lineCount() {
+    return this.view.state.doc.lines;
   }
 
   /** Text of source lines [startLine, endLine). */
