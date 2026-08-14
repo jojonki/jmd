@@ -119,6 +119,14 @@ const baseTheme = EditorView.theme({
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
     backgroundColor: 'var(--selection)',
   },
+  // CodeMirror's own base theme paints the *focused* selection through a
+  // selector specific enough to beat the line above — and it reaches for its
+  // light palette, because this theme is one set of variables rather than a
+  // light/dark pair. Every dark skin used to select text into a near-white
+  // band. Matching the base rule's shape hands the colour back to the theme.
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+    backgroundColor: 'var(--selection)',
+  },
   '.cm-activeLine': { backgroundColor: 'var(--active-line)' },
   '.cm-gutters': {
     backgroundColor: 'transparent',
@@ -128,7 +136,13 @@ const baseTheme = EditorView.theme({
   },
   '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--fg-muted)' },
   '.cm-selectionMatch': { backgroundColor: 'var(--match)' },
-  '.cm-searchMatch': { backgroundColor: 'var(--match)', outline: '1px solid var(--border)' },
+  // Syntax colouring would otherwise decide how legible a match is; the theme's
+  // selection foreground is picked to sit on these bands.
+  '.cm-searchMatch': {
+    backgroundColor: 'var(--match)',
+    color: 'var(--selection-fg)',
+    outline: '1px solid var(--border)',
+  },
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--match-active)' },
   '.cm-panels': {
     backgroundColor: 'var(--bg-elevated)',

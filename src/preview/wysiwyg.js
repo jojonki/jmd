@@ -261,6 +261,18 @@ export class PreviewEditor {
 
     this.root = preview.root;
     this.#bind();
+
+    /*
+     * Re-rendering replaces whole blocks, which to the observer below reads
+     * exactly like the user deleting them: the records it queues would mark
+     * those lines as edited here, and the next commit would convert the
+     * rendered HTML back over source the user never touched in this pane —
+     * flattening a paragraph's own line breaks in the process. Draining the
+     * queue right after the patch is what separates our rewrites from theirs.
+     * A flag cannot do it: the observer is called at the microtask checkpoint,
+     * long after any `suspended = false` has run.
+     */
+    preview.onPatch = () => this.observer.takeRecords();
   }
 
   #bind() {

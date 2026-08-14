@@ -1,6 +1,7 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, shell, nativeTheme } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const { pathToFileURL } = require('node:url');
 
 const isMac = process.platform === 'darwin';
@@ -30,6 +31,14 @@ function registerFileProtocol() {
 /** @type {Set<BrowserWindow>} */
 const windows = new Set();
 
+/**
+ * When each window was last brought forward. There is no z-order to ask for,
+ * and overlapping windows have to be told apart when a tab is dropped over
+ * them; the one the user last worked in is the one that was on top.
+ * @type {Map<BrowserWindow, number>}
+ */
+const raisedAt = new Map();
+
 function createWindow(filePath = null) {
   const win = new BrowserWindow({
     width: 1280,
@@ -51,7 +60,12 @@ function createWindow(filePath = null) {
   });
 
   windows.add(win);
-  win.on('closed', () => windows.delete(win));
+  raisedAt.set(win, Date.now());
+  win.on('focus', () => raisedAt.set(win, Date.now()));
+  win.on('closed', () => {
+    windows.delete(win);
+    raisedAt.delete(win);
+  });
   win.once('ready-to-show', () => win.show());
 
   // Pass the file to open (if any) through the query string so the renderer
@@ -106,6 +120,12 @@ function actionItem(label, id, extra = {}) {
   };
 }
 
+/** The same links the renderer's About dialog offers. */
+const LINKS = {
+  repo: 'https://github.com/jojonki/jmd',
+  sponsor: 'https://github.com/sponsors/jojonki',
+};
+
 function buildMenu() {
   const themes = [
     ['github', 'GitHub Light'],
@@ -122,7 +142,7 @@ function buildMenu() {
       ? [{
           label: app.name,
           submenu: [
-            { role: 'about' },
+            actionItem(`About ${app.name}`, 'app.about'),
             { type: 'separator' },
             actionItem('Settings…', 'app.settings'),
             { type: 'separator' },
@@ -167,6 +187,7 @@ function buildMenu() {
         { role: 'selectAll' },
         { type: 'separator' },
         { label: 'Find', accelerator: 'CmdOrCtrl+F', click: () => send('menu:find') },
+        actionItem('Find in Preview', 'find.preview'),
       ],
     },
     {
@@ -205,6 +226,14 @@ function buildMenu() {
           : [{ role: 'minimize' }, { role: 'close' }]),
       ],
     },
+    {
+      role: 'help',
+      submenu: [
+        ...(isMac ? [] : [actionItem(`About ${app.name}`, 'app.about'), { type: 'separator' }]),
+        { label: 'jmd on GitHub', click: () => shell.openExternal(LINKS.repo) },
+        { label: 'Sponsor jmd', click: () => shell.openExternal(LINKS.sponsor) },
+      ],
+    },
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -237,6 +266,91 @@ async function openPath(filePath) {
   win.webContents.send('file:opened', { path: filePath, content });
   win.focus();
 }
+
+// ------------------------------------------------------------ file watching
+
+/**
+ * One watcher per open file, per window. The renderer says which paths it has
+ * open; whenever one of them changes on disk we read it and hand the fresh
+ * text over, and the renderer decides whether that means reloading a tab.
+ * @type {Map<Electron.WebContents, Map<string, { close: () => void }>>}
+ */
+const watched = new Map();
+
+function watchFile(wc, filePath) {
+  let watcher = null;
+  let timer = null;
+
+  const arm = () => {
+    try {
+      // Not persistent: watching a document must not by itself keep the
+      // process alive after its window is gone.
+      watcher = fsSync.watch(filePath, { persistent: false }, () => schedule());
+      watcher.on('error', () => schedule());
+    } catch {
+      watcher = null; // the file is not there right now; nothing to follow
+    }
+  };
+
+  // A rename lands as one event and a write as several; wait for the flurry
+  // to settle before reading, or the read catches a half-written file.
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(reload, 120);
+  };
+
+  const reload = async () => {
+    // Most editors save by writing a new file over the old name, which leaves
+    // the watch pointing at an inode nothing refers to any more. Re-arming on
+    // every event is what keeps the second external save visible.
+    try {
+      watcher?.close();
+    } catch {
+      /* already closed */
+    }
+    arm();
+    try {
+      const content = await fs.readFile(filePath, 'utf8');
+      if (!wc.isDestroyed()) wc.send('file:changed', { path: filePath, content });
+    } catch {
+      /* deleted, or briefly absent mid-save: there is nothing to report */
+    }
+  };
+
+  arm();
+  return {
+    close() {
+      clearTimeout(timer);
+      try {
+        watcher?.close();
+      } catch {
+        /* already closed */
+      }
+    },
+  };
+}
+
+ipcMain.on('files:watch', (event, paths) => {
+  const wc = event.sender;
+  let byPath = watched.get(wc);
+  if (!byPath) {
+    byPath = new Map();
+    watched.set(wc, byPath);
+    wc.once('destroyed', () => {
+      for (const entry of byPath.values()) entry.close();
+      watched.delete(wc);
+    });
+  }
+  const wanted = new Set((Array.isArray(paths) ? paths : []).filter((p) => typeof p === 'string' && p));
+  for (const [filePath, entry] of byPath) {
+    if (wanted.has(filePath)) continue;
+    entry.close();
+    byPath.delete(filePath);
+  }
+  for (const filePath of wanted) {
+    if (!byPath.has(filePath)) byPath.set(filePath, watchFile(wc, filePath));
+  }
+});
 
 // ---------------------------------------------------------------- IPC
 
@@ -295,6 +409,56 @@ ipcMain.handle('dialog:confirm-close', async (event, name) => {
   });
   return ['save', 'discard', 'cancel'][response];
 });
+
+/**
+ * A tab dropped outside its window goes wherever it was let go: into another
+ * jmd window that happens to be under the pointer, or into a new window opened
+ * on the spot. The text travels through this call rather than being re-read
+ * from disk, so unsaved work — and an untitled document — survives the move.
+ *
+ * @returns {'merged'|'detached'|false} false when the move did not happen
+ */
+ipcMain.handle('tab:detach', (event, { path: filePath, content, saved, x, y, lone }) => {
+  const source = BrowserWindow.fromWebContents(event.sender);
+  const document = { path: filePath ?? null, content, saved };
+
+  const target = windowAt(x, y, source);
+  if (target) {
+    target.webContents.send('tab:adopt', document);
+    target.focus();
+    return 'merged';
+  }
+
+  // Pulling a window's only tab into a new window would close one window and
+  // open an identical one; dropping it on another window is still a real move.
+  if (lone) return false;
+
+  const win = createWindow();
+  win.webContents.once('did-finish-load', () => win.webContents.send('tab:adopt', document));
+  placeAt(win, x, y);
+  return 'detached';
+});
+
+/** The jmd window under a screen point, if the drop landed on one. */
+function windowAt(x, y, exclude) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || (!x && !y)) return null;
+  const under = [...windows].filter((win) => {
+    if (win === exclude || win.isDestroyed() || win.isMinimized() || !win.isVisible()) return false;
+    const { x: left, y: top, width, height } = win.getBounds();
+    return x >= left && x < left + width && y >= top && y < top + height;
+  });
+  return under.sort((a, b) => (raisedAt.get(b) ?? 0) - (raisedAt.get(a) ?? 0))[0] ?? null;
+}
+
+/** Put a new window under the pointer, without pushing it off the display. */
+function placeAt(win, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || (!x && !y)) return;
+  const area = screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) }).workArea;
+  const [width, height] = win.getSize();
+  const left = Math.min(Math.max(Math.round(x) - 80, area.x), area.x + area.width - width);
+  const top = Math.min(Math.max(Math.round(y) - 16, area.y), area.y + area.height - height);
+  win.setPosition(left, top);
+}
 
 ipcMain.on('window:set-title', (event, title) => {
   const win = BrowserWindow.fromWebContents(event.sender);

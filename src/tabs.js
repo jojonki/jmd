@@ -1,4 +1,11 @@
 /**
+ * Marks a drag as carrying one of our tabs. Another window sees this type on
+ * the drop and knows to leave the payload alone: the document is moved through
+ * the main process, not through the drag's own text.
+ */
+export const TAB_MIME = 'application/x-jmd-tab';
+
+/**
  * The tab strip. Purely presentational: it renders whatever list of documents
  * it is handed and reports intent (select / close / new / reorder) back to the
  * caller, which owns the actual tab model.
@@ -7,7 +14,8 @@ export class TabBar {
   /**
    * @param {HTMLElement} strip container the tab elements live in
    * @param {{ onSelect: (id: number) => void, onClose: (id: number) => void,
-   *           onNew: () => void, onReorder: (id: number, before: number|null) => void }} handlers
+   *           onNew: () => void, onReorder: (id: number, before: number|null) => void,
+   *           onDetach?: (id: number, at: { x: number, y: number }) => void }} handlers
    */
   constructor(strip, handlers) {
     this.strip = strip;
@@ -41,6 +49,7 @@ export class TabBar {
       event.dataTransfer.effectAllowed = 'move';
       // Firefox/Chromium need *some* payload before a drag will start.
       event.dataTransfer.setData('text/plain', tab.dataset.id);
+      event.dataTransfer.setData(TAB_MIME, tab.dataset.id);
     });
 
     strip.addEventListener('dragover', (event) => {
@@ -54,16 +63,28 @@ export class TabBar {
       event.preventDefault();
       const over = event.target.closest?.('.tab');
       const id = this.draggingId;
-      if (!over || Number(over.dataset.id) === id) return;
+      // The strip's empty space past the last tab means "put it at the end".
+      if (!over) {
+        handlers.onReorder(id, null);
+        return;
+      }
+      if (Number(over.dataset.id) === id) return;
       const box = over.getBoundingClientRect();
       const after = event.clientX > box.left + box.width / 2;
       const target = Number(over.dataset.id);
       handlers.onReorder(id, after ? nextIdAfter(this.strip, target) : target);
     });
 
-    strip.addEventListener('dragend', () => {
+    // Letting go outside the window pulls the document into one of its own,
+    // the way a browser tab does. `drop` never fires there, so `dragend` —
+    // which reports where the pointer actually was — is what decides.
+    strip.addEventListener('dragend', (event) => {
+      const id = this.draggingId;
       this.draggingId = null;
       for (const el of this.elements.values()) el.classList.remove('is-dragging');
+      if (id != null && outsideWindow(event)) {
+        handlers.onDetach?.(id, { x: event.screenX, y: event.screenY });
+      }
     });
   }
 
@@ -114,6 +135,23 @@ export class TabBar {
   scrollIntoView(id) {
     this.elements.get(id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
+}
+
+/**
+ * Whether a drag was released beyond the window's own frame. Both coordinate
+ * systems are the screen's, so the window's position is all that is needed.
+ */
+function outsideWindow(event) {
+  const { screenX: x, screenY: y } = event;
+  // Chromium reports 0,0 when it has no real position to give (a cancelled
+  // drag, for one), which must not read as "the top-left corner of display 1".
+  if (!x && !y) return false;
+  return (
+    x < window.screenX ||
+    y < window.screenY ||
+    x > window.screenX + window.outerWidth ||
+    y > window.screenY + window.outerHeight
+  );
 }
 
 function nextIdAfter(strip, id) {

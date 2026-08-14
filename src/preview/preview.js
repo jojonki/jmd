@@ -19,6 +19,13 @@ export class Preview {
     this.scroller = scroller;
     this.basePath = null;
     this.lastSource = null;
+    /**
+     * Called right after the DOM has been patched. An editor sitting on top of
+     * the preview needs to know which changes to its blocks were its user's and
+     * which were ours.
+     * @type {(() => void)|null}
+     */
+    this.onPatch = null;
   }
 
   setBasePath(filePath) {
@@ -38,6 +45,7 @@ export class Preview {
     // never fires a request for the unresolved relative URL.
     this.resolveAssets(template.content);
     patchChildren(this.root, Array.from(template.content.children));
+    this.onPatch?.();
   }
 
   /** Force the next render() call to do work even if the source is unchanged. */

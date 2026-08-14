@@ -41,6 +41,8 @@ const listen = (channel) => (handler) => {
 
 contextBridge.exposeInMainWorld('jmd', {
   platform: process.platform,
+  /** Shown in the About dialog. */
+  versions: { electron: process.versions?.electron, chrome: process.versions?.chrome },
   readFile: (filePath) => ipcRenderer.invoke('file:read', filePath),
   /** Safely recover a native path while the value is still a real File. */
   droppedFilePath: (file) => webUtils.getPathForFile(file),
@@ -48,6 +50,10 @@ contextBridge.exposeInMainWorld('jmd', {
   saveAs: (payload) => ipcRenderer.invoke('file:save-as', payload),
   exportHtml: (payload) => ipcRenderer.invoke('file:export-html', payload),
   confirmClose: (name) => ipcRenderer.invoke('dialog:confirm-close', name),
+  /** Move one document, unsaved text included, into a window of its own. */
+  detachTab: (payload) => ipcRenderer.invoke('tab:detach', payload),
+  /** The files this window has open, which the main process then watches. */
+  watchFiles: (paths) => ipcRenderer.send('files:watch', paths),
   openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
   /** Reveal a file in Finder / Explorer / the desktop's file manager. */
   showInFolder: (filePath) => ipcRenderer.invoke('shell:show-item', filePath),
@@ -76,6 +82,10 @@ contextBridge.exposeInMainWorld('jmd', {
   basename,
 
   onFileOpened: listen('file:opened'),
+  /** A document dragged out of another window, arriving in this one. */
+  onTabAdopt: listen('tab:adopt'),
+  /** An open file was rewritten by something else. */
+  onFileChanged: listen('file:changed'),
   onMenuSave: listen('menu:save'),
   onMenuSaveAs: listen('menu:save-as'),
   onMenuExportHtml: listen('menu:export-html'),

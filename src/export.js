@@ -25,6 +25,7 @@ body {
   color: var(--fg);
 }
 .markdown-body { max-width: 46rem; margin: 0 auto; }
+::selection { background-color: var(--selection); color: var(--selection-fg); }
 </style>
 </head>
 <body>

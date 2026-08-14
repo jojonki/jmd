@@ -33,6 +33,16 @@
         <section id="editor-pane" class="pane"></section>
         <div id="divider" role="separator" aria-orientation="vertical" tabindex="0"></div>
         <section id="preview-pane" class="pane">
+          <div id="find" class="find-bar" hidden>
+            <div class="find-box">
+              <input id="find-input" class="find-input" type="text" spellcheck="false"
+                placeholder="Find in preview" aria-label="Find in preview" />
+              <span id="find-count" class="find-count" aria-live="polite"></span>
+              <button id="find-prev" class="find-btn" type="button" title="Previous match" aria-label="Previous match">↑</button>
+              <button id="find-next" class="find-btn" type="button" title="Next match" aria-label="Next match">↓</button>
+              <button id="find-close" class="find-btn" type="button" title="Close" aria-label="Close find">×</button>
+            </div>
+          </div>
           <article id="preview" class="markdown-body"></article>
         </section>
       </main>
@@ -62,6 +72,16 @@
           <section id="pane-appearance" class="settings-pane"></section>
           <section id="pane-shortcuts" class="settings-pane" hidden></section>
         </div>
+      </div>
+    </div>
+
+    <div id="about" class="overlay" hidden>
+      <div class="dialog dialog-narrow" role="dialog" aria-modal="true" aria-labelledby="about-title">
+        <header class="dialog-head">
+          <h2 id="about-title">About jmd</h2>
+          <button id="about-close" class="icon-btn" type="button" aria-label="Close about">×</button>
+        </header>
+        <div class="dialog-body" id="about-body"></div>
       </div>
     </div>
 

@@ -575,6 +575,43 @@ module.exports = async function run(win, { app }) {
     }
     const themeApplied = await js(`document.documentElement.dataset.theme`);
     check('theme switching works', themeApplied === 'dracula', themeApplied);
+
+    // Selected text has to stay readable in every skin, which takes a colour
+    // for the text as well as for the band behind it.
+    const selectionTokens = await js(`(() => {
+      const out = {};
+      for (const id of ['github', 'paper', 'solarized-light', 'nord', 'dracula', 'gruvbox-dark']) {
+        const probe = document.createElement('div');
+        probe.dataset.theme = id;
+        document.body.appendChild(probe);
+        const style = getComputedStyle(probe);
+        out[id] = {
+          band: style.getPropertyValue('--selection').trim(),
+          text: style.getPropertyValue('--selection-fg').trim(),
+        };
+        probe.remove();
+      }
+      return out;
+    })()`);
+    check('every theme names both selection colours',
+      Object.values(selectionTokens).every((t) => t.band && t.text),
+      JSON.stringify(selectionTokens));
+
+    // CodeMirror's base theme has a more specific rule for the *focused*
+    // selection, and it reaches for its light palette; the skin has to win.
+    grabFocus();
+    const focusedBand = await js(`(async () => {
+      window.__jmd.setLayout('editor');
+      window.__jmd.editor.focus();
+      const view = window.__jmd.editor.view;
+      view.dispatch({ selection: { anchor: 0, head: Math.min(6, view.state.doc.length) } });
+      await new Promise(r => setTimeout(r, 250));
+      const piece = document.querySelector('.cm-selectionBackground');
+      return piece ? getComputedStyle(piece).backgroundColor : null;
+    })()`);
+    check('the focused source selection uses the theme colour',
+      focusedBand === 'rgb(68, 71, 90)', String(focusedBand));
+    await js(`window.__jmd.setLayout('split')`);
     await js(`window.__jmd.setTheme('github')`);
     await wait(200);
 
@@ -690,6 +727,26 @@ module.exports = async function run(win, { app }) {
       previewMatchesSource);
 
     await shot(win, '03-preview-editing');
+
+    // Typing in the source re-renders the preview, which replaces blocks. That
+    // must not read back as an edit made *in* the preview: committing one would
+    // convert untouched paragraphs from HTML and flatten their own line breaks.
+    const sourceEditEcho = await js(`(async () => {
+      window.__jmd.loadDocument(null, '# first\\n\\nwrapped line\\n');
+      await new Promise(r => setTimeout(r, 300));
+      const view = window.__jmd.editor.view;
+      view.dispatch({ changes: { from: view.state.doc.length, insert: 'second line\\n' } });
+      await new Promise(r => setTimeout(r, 400));
+      const before = window.__jmd.editor.getValue();
+      const dirty = window.__jmd.previewEditor.dirty;
+      window.__jmd.previewEditor.commit({ rerender: true });
+      await new Promise(r => setTimeout(r, 300));
+      return { before, after: window.__jmd.editor.getValue(), dirty };
+    })()`);
+    check('an edit made in the source is not committed back as a preview edit',
+      !sourceEditEcho.dirty && sourceEditEcho.after === sourceEditEcho.before &&
+      sourceEditEcho.after === '# first\n\nwrapped line\nsecond line\n',
+      JSON.stringify(sourceEditEcho));
 
     await js(`window.__jmd.setWysiwyg(false)`);
     await wait(300);
@@ -868,6 +925,94 @@ module.exports = async function run(win, { app }) {
       exported.includes('katex') && exported.includes('--bg:'),
       `${exported.length} bytes`);
 
+    // ---------------------------------------------------- following the disk
+    const watchPath = path.join(OUT, 'imgtest', 'watched.md');
+    fs.writeFileSync(watchPath, '# watched\n', 'utf8');
+    await js(`(async () => {
+      const file = await window.jmd.readFile(${JSON.stringify(watchPath)});
+      window.__jmd.newTab({ path: file.path, content: file.content });
+    })()`);
+    await wait(500);
+    fs.writeFileSync(watchPath, '# watched\n\nchanged outside\n', 'utf8');
+    await wait(1000);
+    const followed = await js(`(() => ({
+      text: window.__jmd.editor.getValue(),
+      dirty: document.querySelector('#tabs .tab.is-active').classList.contains('is-dirty'),
+      preview: document.getElementById('preview').textContent.includes('changed outside'),
+    }))()`);
+    check('a tab with no unsaved work follows the file on disk',
+      followed.text === '# watched\n\nchanged outside\n' && !followed.dirty && followed.preview,
+      JSON.stringify(followed));
+
+    await js(`(() => {
+      const view = window.__jmd.editor.view;
+      view.dispatch({ changes: { from: view.state.doc.length, insert: '\\nmine\\n' } });
+      document.getElementById('status-msg').textContent = '';
+    })()`);
+    await wait(300);
+    fs.writeFileSync(watchPath, '# clobbered\n', 'utf8');
+    await wait(1000);
+    const keptUnsaved = await js(`(async () => {
+      const result = {
+        text: window.__jmd.editor.getValue(),
+        message: document.getElementById('status-msg').textContent,
+      };
+      const tab = window.__jmd.activeTab;
+      tab.saved = window.__jmd.editor.getValue();
+      await window.__jmd.closeTab(tab);
+      return result;
+    })()`);
+    check('a tab with unsaved work keeps it, and says the file moved under it',
+      keptUnsaved.text.includes('mine') && !keptUnsaved.text.includes('clobbered') &&
+      /changed on disk/.test(keptUnsaved.message), JSON.stringify(keptUnsaved));
+
+    // ------------------------------------------------------- find in preview
+    await js(`(() => {
+      window.__jmd.setLayout('preview');
+      window.__jmd.loadDocument(null, [
+        '# Alpha heading', '', 'The quick brown fox jumps over the lazy dog.', '',
+        '- alpha one', '- alpha two', '', 'Tail paragraph mentioning alpha again.', '',
+      ].join('\\n'));
+    })()`);
+    await wait(400);
+    const found = await js(`(() => {
+      window.__jmd.openFind();
+      const input = document.getElementById('find-input');
+      input.value = 'alpha';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      window.__jmd.previewFind.step(1);
+      return {
+        visible: !document.getElementById('find').hidden,
+        matches: window.__jmd.previewFind.ranges.length,
+        count: document.getElementById('find-count').textContent,
+        painted: !!CSS.highlights.get('jmd-find-current'),
+      };
+    })()`);
+    check('the preview can be searched', found.visible && found.matches === 4 &&
+      found.count === '2/4' && found.painted, JSON.stringify(found));
+    await shot(win, '09-find-preview');
+
+    const findLive = await js(`(async () => {
+      // A block boundary is not a place a match may straddle.
+      window.__jmd.loadDocument(null, 'one\\n\\ntwo\\n');
+      const input = document.getElementById('find-input');
+      input.value = 'onetwo';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      const across = window.__jmd.previewFind.ranges.length;
+      input.value = 'two';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      const view = window.__jmd.editor.view;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'two two two\\n' } });
+      await new Promise(r => setTimeout(r, 400));
+      const live = window.__jmd.previewFind.ranges.length;
+      document.getElementById('find-close').click();
+      return { across, live, cleared: !CSS.highlights.get('jmd-find-current') };
+    })()`);
+    check('preview matches never cross a block and follow every re-render',
+      findLive.across === 0 && findLive.live === 3 && findLive.cleared, JSON.stringify(findLive));
+    await js(`window.__jmd.setLayout('split')`);
+    await wait(200);
+
     // ---------------------------------------------------------------- tabs
     const press = (accel) => {
       const parts = accel.split('+');
@@ -977,6 +1122,120 @@ module.exports = async function run(win, { app }) {
     check('closing a clean tab removes it', closed.count === 2 && closed.dom === 2,
       JSON.stringify(closed));
 
+    // -------------------------------------------------------- dragging tabs
+    const names = `[...document.querySelectorAll('#tabs .tab .tab-name')].map(n => n.textContent)`;
+    const reordered = await js(`(() => {
+      const strip = document.getElementById('tabs');
+      const before = ${names};
+      const drag = (source, target, clientX) => {
+        const dataTransfer = new DataTransfer();
+        const at = { bubbles: true, cancelable: true, dataTransfer, clientX, clientY: 8 };
+        source.dispatchEvent(new DragEvent('dragstart', at));
+        target.dispatchEvent(new DragEvent('dragover', at));
+        target.dispatchEvent(new DragEvent('drop', at));
+        source.dispatchEvent(new DragEvent('dragend', at));
+      };
+      // Last tab onto the left half of the first one, then back past the end.
+      const first = strip.firstElementChild;
+      drag(strip.lastElementChild, first, first.getBoundingClientRect().left + 4);
+      const swapped = ${names};
+      drag(strip.firstElementChild, strip, strip.getBoundingClientRect().right - 2);
+      return { before, swapped, toEnd: ${names},
+               model: window.__jmd.tabs.map(t => t.path ? t.path.split('/').pop() : 'Untitled') };
+    })()`);
+    check('a tab can be dragged into a new position',
+      JSON.stringify(reordered.swapped) === JSON.stringify([...reordered.before].reverse()) &&
+      JSON.stringify(reordered.toEnd) === JSON.stringify(reordered.before) &&
+      JSON.stringify(reordered.model) === JSON.stringify(reordered.toEnd),
+      JSON.stringify(reordered));
+
+    // Released outside the window, a tab takes its document into one of its own.
+    await js(`(() => {
+      window.__jmd.newTab({ path: null, content: '# moved\\n' });
+      const view = window.__jmd.editor.view;
+      view.dispatch({ changes: { from: view.state.doc.length, insert: 'unsaved line\\n' } });
+    })()`);
+    await wait(300);
+    const tabsBeforeDetach = await js(`window.__jmd.tabs.length`);
+    await js(`(() => {
+      const source = document.getElementById('tabs').lastElementChild;
+      const dataTransfer = new DataTransfer();
+      source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+      source.dispatchEvent(new DragEvent('dragend', {
+        bubbles: true, cancelable: true, dataTransfer,
+        screenX: window.screenX + window.outerWidth + 220,
+        screenY: window.screenY + 140,
+      }));
+    })()`);
+    await wait(1500);
+    const { BrowserWindow } = require('electron');
+    const spawned = BrowserWindow.getAllWindows().filter((w) => w !== win);
+    const detached = await js(`window.__jmd.tabs.length`);
+    let adopted = null;
+    if (spawned.length === 1) {
+      adopted = await spawned[0].webContents.executeJavaScript(`(() => ({
+        tabs: window.__jmd.tabs.length,
+        text: window.__jmd.editor.getValue(),
+        dirty: window.__jmd.tabs[0].saved !== window.__jmd.editor.getValue(),
+      }))()`, true);
+    }
+    check('a tab dropped outside the window moves into a new one, unsaved text included',
+      spawned.length === 1 && detached === tabsBeforeDetach - 1 && adopted?.tabs === 1 &&
+      adopted.text === '# moved\nunsaved line\n' && adopted.dirty,
+      JSON.stringify({ tabsBeforeDetach, detached, windows: spawned.length, adopted }));
+
+    // …and dragging it back onto the first window puts it there, which leaves
+    // the window it came from with nothing to show and so closes it.
+    let merged = null;
+    if (spawned.length === 1) {
+      const target = win.getBounds();
+      const from = spawned[0].getBounds();
+      // Somewhere inside the first window but outside the one being dragged
+      // from, or the release never counts as leaving that window at all.
+      const dropX = from.x > target.x + 80 ? target.x + 40 : target.x + target.width - 40;
+      const dropY = target.y + 60;
+      await spawned[0].webContents.executeJavaScript(`(() => {
+        const source = document.getElementById('tabs').firstElementChild;
+        const dataTransfer = new DataTransfer();
+        source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+        source.dispatchEvent(new DragEvent('dragend', {
+          bubbles: true, cancelable: true, dataTransfer,
+          screenX: ${Math.round(dropX)},
+          screenY: ${Math.round(dropY)},
+        }));
+      })()`, true);
+      await wait(1200);
+      merged = await js(`(() => ({
+        tabs: window.__jmd.tabs.length,
+        text: window.__jmd.editor.getValue(),
+        dirty: document.querySelector('#tabs .tab.is-active').classList.contains('is-dirty'),
+        windows: 0,
+      }))()`);
+      merged.windows = BrowserWindow.getAllWindows().filter((w) => w !== win).length;
+    }
+    check('dragging a tab back onto another window merges it there',
+      merged?.tabs === tabsBeforeDetach && merged.text === '# moved\nunsaved line\n' &&
+      merged.dirty && merged.windows === 0, JSON.stringify(merged));
+    // The move goes through the main process, so the drop itself must be inert:
+    // otherwise the editable preview writes the drag's payload into the text.
+    const dropGuard = await js(`(() => {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.setData('text/plain', '7');
+      dataTransfer.setData('application/x-jmd-tab', '7');
+      const event = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer });
+      document.getElementById('preview').dispatchEvent(event);
+      return event.defaultPrevented;
+    })()`);
+    check('a tab from another window is never dropped into the document as text',
+      dropGuard === true, String(dropGuard));
+
+    await js(`(async () => {
+      const tab = window.__jmd.activeTab;
+      tab.saved = window.__jmd.editor.getValue();
+      await window.__jmd.closeTab(tab);
+    })()`);
+    await wait(300);
+
     // ------------------------------------------------------ settings panel
     await press('Cmd+,');
     await wait(300);
@@ -1016,6 +1275,26 @@ module.exports = async function run(win, { app }) {
     await wait(200);
     const reset = await js(`document.documentElement.style.getPropertyValue('--accent')`);
     check('the accent can be handed back to the skin', reset === '', JSON.stringify(reset));
+
+    // -------------------------------------------------------- about dialog
+    await js(`window.__jmd.runAction('app.about')`);
+    await wait(300);
+    const about = await js(`(() => ({
+      open: !document.getElementById('about').hidden,
+      version: document.querySelector('.about-version')?.textContent ?? '',
+      icon: !!document.querySelector('.about-icon')?.naturalWidth,
+      links: [...document.querySelectorAll('#about-body [data-url]')].map(el => el.dataset.url),
+    }))()`);
+    check('the about dialog shows the version, the icon and the project links',
+      about.open && /Version \d+\.\d+\.\d+/.test(about.version) && about.icon &&
+        about.links.includes('https://github.com/jojonki/jmd') &&
+        about.links.includes('https://github.com/sponsors/jojonki'),
+      JSON.stringify(about));
+    await shot(win, '10-about');
+
+    await js(`window.__jmd.aboutPanel.close()`);
+    await wait(150);
+    check('the about dialog closes', await js(`document.getElementById('about').hidden`));
   } catch (error) {
     check('smoke run completed without exception', false, String(error && error.stack ? error.stack : error));
   }

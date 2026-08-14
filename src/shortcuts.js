@@ -95,6 +95,7 @@ export const ACTION_GROUPS = [
       { id: 'layout.split', label: 'Split', defaults: [`${VIEW_MOD}+2`] },
       { id: 'layout.preview', label: 'Preview only', defaults: [`${VIEW_MOD}+3`] },
       { id: 'view.wysiwyg', label: 'Edit in preview', defaults: [`${MOD}+E`] },
+      { id: 'find.preview', label: 'Find in preview', defaults: [`${MOD}+Shift+F`] },
     ],
   },
   {

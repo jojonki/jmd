@@ -36,7 +36,8 @@
   --accent: #0969da;
   --accent-fg: #ffffff;
   --link: #0969da;
-  --selection: #b6d7ff88;
+  --selection: #b6d7ffcc;
+  --selection-fg: #0d1117;
   --active-line: #f6f8fa;
   --caret: #0969da;
   --match: #fff8c5;
@@ -73,7 +74,8 @@
   --accent: #a4560f;
   --accent-fg: #ffffff;
   --link: #a4560f;
-  --selection: #e8d5b088;
+  --selection: #e6d3a8cc;
+  --selection-fg: #241f18;
   --active-line: #f5efe6;
   --caret: #a4560f;
   --match: #f0e2c0;
@@ -111,7 +113,8 @@
   --accent: #268bd2;
   --accent-fg: #fdf6e3;
   --link: #268bd2;
-  --selection: #cfe4ee;
+  --selection: #bfdcea;
+  --selection-fg: #073642;
   --active-line: #f4edda;
   --caret: #268bd2;
   --match: #f2e7bd;
@@ -148,7 +151,8 @@
   --accent: #88c0d0;
   --accent-fg: #2e3440;
   --link: #88c0d0;
-  --selection: #4c566a99;
+  --selection: #4c566acc;
+  --selection-fg: #eceff4;
   --active-line: #353c4a;
   --caret: #88c0d0;
   --match: #4c566a;
@@ -186,6 +190,7 @@
   --accent-fg: #282a36;
   --link: #8be9fd;
   --selection: #44475a;
+  --selection-fg: #f8f8f2;
   --active-line: #2f3242;
   --caret: #ff79c6;
   --match: #44475a;
@@ -223,6 +228,7 @@
   --accent-fg: #1d2021;
   --link: #83a598;
   --selection: #504945;
+  --selection-fg: #fbf1c7;
   --active-line: #262829;
   --caret: #fabd2f;
   --match: #504945;

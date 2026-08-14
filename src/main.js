@@ -6,11 +6,13 @@ import './styles/markdown.css';
 import { Editor } from './editor/editor.js';
 import { Preview } from './preview/preview.js';
 import { PreviewEditor } from './preview/wysiwyg.js';
+import { PreviewFind } from './preview/find.js';
 import { DEFAULT_THEME, applyTheme, applyAccent, normalizeHex } from './themes.js';
 import { exportDocument } from './export.js';
-import { TabBar } from './tabs.js';
+import { TabBar, TAB_MIME } from './tabs.js';
 import { Shortcuts, formatAccel } from './shortcuts.js';
 import { createSettingsPanel } from './settings-panel.js';
+import { createAboutPanel } from './about-panel.js';
 
 const bridge = window.jmd;
 const $ = (id) => document.getElementById(id);
@@ -20,6 +22,12 @@ const el = {
   editorPane: $('editor-pane'),
   previewPane: $('preview-pane'),
   preview: $('preview'),
+  find: $('find'),
+  findInput: $('find-input'),
+  findCount: $('find-count'),
+  findPrev: $('find-prev'),
+  findNext: $('find-next'),
+  findClose: $('find-close'),
   divider: $('divider'),
   tabbar: $('tabbar'),
   tabs: $('tabs'),
@@ -70,12 +78,28 @@ const shortcuts = new Shortcuts(settings.shortcuts);
 
 const preview = new Preview(el.preview, el.previewPane);
 
+const previewFind = new PreviewFind(
+  el.preview,
+  el.previewPane,
+  {
+    bar: el.find,
+    input: el.findInput,
+    count: el.findCount,
+    prev: el.findPrev,
+    next: el.findNext,
+    close: el.findClose,
+  },
+  { onClose: () => (previewEditor.enabled ? previewEditor.focus() : editor.focus()) },
+);
+
 let renderHandle = 0;
 function scheduleRender() {
   cancelAnimationFrame(renderHandle);
   renderHandle = requestAnimationFrame(() => {
     preview.render(editor.getValue());
     preview.syncAtomic();
+    // A re-render leaves the find ranges pointing at replaced nodes.
+    previewFind.reindex();
   });
 }
 
@@ -94,6 +118,7 @@ const previewEditor = new PreviewEditor({
   onCommit: () => {
     refreshChrome();
     refreshCounts();
+    previewFind.reindex();
   },
   onAtomicClick: (line) => {
     // Read-only blocks (math, code, raw HTML) are edited in the source pane.
@@ -123,6 +148,7 @@ const tabBar = new TabBar(el.tabs, {
   onClose: (id) => closeTab(byId(id)),
   onNew: () => newTab(),
   onReorder: (id, beforeId) => reorderTab(id, beforeId),
+  onDetach: (id, at) => detachTab(byId(id), at),
 });
 
 el.newTabBtn.addEventListener('click', () => newTab());
@@ -147,7 +173,7 @@ function isTabDirty(tab) {
 
 /** An untouched blank document — the one tab an opened file may take over. */
 function isEmptyTab(tab) {
-  return !tab.path && !isTabDirty(tab);
+  return !tab.path && !isTabDirty(tab) && !textOf(tab);
 }
 
 function isDirty() {
@@ -189,6 +215,7 @@ function activateTab(tab) {
   preview.invalidate();
   preview.render(editor.getValue());
   preview.syncAtomic();
+  previewFind.reindex();
   el.previewPane.scrollTop = tab.previewScroll;
 
   if (wasEditing) previewEditor.setEnabled(true);
@@ -220,6 +247,40 @@ function reorderTab(id, beforeId) {
 }
 
 /**
+ * Dropping a tab outside the window moves that document — unsaved text and
+ * all — to wherever it was let go: onto another jmd window, which takes it
+ * over, or onto nothing, which opens a window of its own. The main process
+ * owns that decision, since only it knows where the other windows are.
+ */
+async function detachTab(tab, at) {
+  if (!tab || !bridge?.detachTab) return false;
+  const moved = await bridge.detachTab({
+    path: tab.path,
+    content: textOf(tab),
+    saved: tab.saved,
+    x: at?.x ?? 0,
+    y: at?.y ?? 0,
+    // A window's only tab can join another window, but pulling it into a new
+    // one would just close this window and open an identical one.
+    lone: tabs.length < 2,
+  });
+  if (!moved) return false;
+  flash(`Moved ${nameOf(tab)} to ${moved === 'merged' ? 'another' : 'a new'} window`);
+  // The text is safe in the other window, so this copy goes without a prompt.
+  removeTab(tab);
+  return true;
+}
+
+/** Take a document over from a window it was dragged out of. */
+function adoptTab({ path, content, saved }) {
+  const tab = active && isEmptyTab(active) ? loadDocument(path, content) : newTab({ path, content });
+  tab.saved = saved ?? content;
+  activateTab(tab);
+  refreshChrome();
+  refreshCounts();
+}
+
+/**
  * Close a tab, asking about unsaved work first. Closing the last tab closes
  * the window, the way every other tabbed macOS app behaves.
  * @returns {Promise<boolean>} whether it actually closed
@@ -232,8 +293,13 @@ async function closeTab(tab) {
     if (choice === 'cancel') return false;
     if (choice === 'save' && !(await save())) return false;
   }
+  return removeTab(tab);
+}
 
+/** Drop a tab from the strip, with no questions asked about its contents. */
+function removeTab(tab) {
   const index = tabs.indexOf(tab);
+  if (index < 0) return false;
   tabs.splice(index, 1);
   if (!tabs.length) {
     if (bridge) {
@@ -255,6 +321,7 @@ async function closeTab(tab) {
 }
 
 function renderTabs() {
+  syncWatches();
   tabBar.render(
     tabs.map((tab) => ({
       id: tab.id,
@@ -264,6 +331,71 @@ function renderTabs() {
     })),
     active?.id ?? null,
   );
+}
+
+// ------------------------------------------------------ following the disk
+
+/** The set of paths the main process is currently watching for us. */
+let watching = '';
+
+function syncWatches() {
+  const paths = [...new Set(tabs.map((tab) => tab.path).filter(Boolean))].sort();
+  const key = paths.join('\n');
+  if (key === watching) return;
+  watching = key;
+  bridge?.watchFiles?.(paths);
+}
+
+/**
+ * What this window last wrote to each path. A save is a change to the file
+ * like any other, and this is what tells the two apart.
+ * @type {Map<string, string>}
+ */
+const lastWritten = new Map();
+
+/**
+ * An open file changed underneath us. A tab with no unsaved work follows the
+ * file; one with unsaved work keeps it and says so, because there is no
+ * version of "reload" that does not throw the user's own text away.
+ */
+function fileChangedOnDisk(path, content) {
+  if (lastWritten.get(path) === content) return; // our own save, coming back
+  for (const tab of tabs) {
+    if (tab.path !== path) continue;
+    if (textOf(tab) === content) {
+      tab.saved = content;
+      continue;
+    }
+    if (isTabDirty(tab)) {
+      flash(`${nameOf(tab)} changed on disk — your unsaved version is kept`);
+      continue;
+    }
+    reloadTab(tab, content);
+    flash(`Reloaded ${nameOf(tab)}`);
+  }
+  refreshChrome();
+}
+
+/** Replace a tab's text with what is now on disk, keeping the reader in place. */
+function reloadTab(tab, content) {
+  if (tab !== active) {
+    tab.state = editor.createState(content);
+    tab.saved = content;
+    return;
+  }
+  const line = editor.topLine();
+  const wasEditing = previewEditor.enabled;
+  if (wasEditing) previewEditor.setEnabled(false);
+  editor.setValue(content, { silent: true });
+  tab.saved = content;
+  preview.invalidate();
+  preview.render(content);
+  preview.syncAtomic();
+  previewFind.reindex();
+  editor.scrollToLine(line);
+  preview.scrollToLine(line);
+  if (wasEditing) previewEditor.setEnabled(true);
+  refreshCounts();
 }
 
 /**
@@ -297,6 +429,7 @@ function loadDocument(path, content) {
   preview.invalidate();
   preview.render(content);
   preview.syncAtomic();
+  previewFind.reindex();
   el.previewPane.scrollTop = 0;
   if (wasEditing) previewEditor.setEnabled(true);
   renderTabs();
@@ -325,6 +458,21 @@ async function openDroppedPaths(paths) {
   }
   return opened;
 }
+
+// A tab dragged out of another jmd window can be let go anywhere over this one,
+// and the move is answered through the main process. The drop itself must do
+// nothing here: left alone, the editable preview would take the drag's text and
+// write the tab's id into the document.
+window.addEventListener(
+  'drop',
+  (event) => {
+    if (tabBar.draggingId != null) return; // a drag from our own strip
+    if (!event.dataTransfer?.types.includes(TAB_MIME)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  },
+  true,
+);
 
 let fileDragDepth = 0;
 window.addEventListener('dragenter', (event) => {
@@ -446,6 +594,7 @@ function setLayout(layout) {
   el.statusLayout.dataset.layout = layout;
   // The preview must be visible for in-preview editing to make sense; with the
   // preview alone on screen, editing it is the only thing the pane is good for.
+  if (layout === 'editor') previewFind.hide();
   if (layout === 'editor' && previewEditor.enabled) setWysiwyg(false);
   if (layout === 'preview' && !previewEditor.enabled) setWysiwyg(true);
   saveSettings();
@@ -509,6 +658,27 @@ function setAccent(color) {
   settingsPanel?.syncAppearance();
 }
 
+// ------------------------------------------------------------------ finding
+
+/**
+ * ⌘F searches whichever pane the user is working in: the rendered document
+ * when the preview has focus (or is all there is on screen), the source
+ * otherwise.
+ */
+function openFind() {
+  const previewIsWhereTheUserIs =
+    settings.layout === 'preview' ||
+    (settings.layout === 'split' && el.previewPane.contains(document.activeElement));
+  if (previewIsWhereTheUserIs) previewFind.show();
+  else editor.openSearch();
+}
+
+/** Search the rendered document explicitly, whichever pane has focus. */
+function findInPreview() {
+  if (settings.layout === 'editor') setLayout('split');
+  previewFind.show();
+}
+
 // ---------------------------------------------------------- preview affordances
 
 // Links open in the real browser rather than navigating the app.
@@ -558,6 +728,7 @@ async function save({ as = false } = {}) {
   if (!result) return false;
   active.path = result.path;
   active.saved = content;
+  lastWritten.set(result.path, content);
   preview.setBasePath(result.path);
   refreshChrome();
   flash(`Saved ${bridge?.basename?.(result.path) ?? ''}`);
@@ -596,6 +767,11 @@ const settingsPanel = createSettingsPanel({
 
 el.settingsBtn.addEventListener('click', () => settingsPanel.toggle());
 
+const aboutPanel = createAboutPanel({
+  openExternal: (url) => bridge?.openExternal(url),
+  versions: bridge?.versions,
+});
+
 // ------------------------------------------------------------------ actions
 
 /** Everything a shortcut or a menu item can trigger, by action id. */
@@ -609,8 +785,10 @@ const ACTIONS = {
   'layout.split': () => setLayout('split'),
   'layout.preview': () => setLayout('preview'),
   'view.wysiwyg': () => setWysiwyg(!previewEditor.enabled),
+  'find.preview': () => findInPreview(),
   'file.reveal': () => revealActive(),
   'app.settings': () => settingsPanel.toggle(),
+  'app.about': () => aboutPanel.toggle(),
 };
 for (let i = 1; i <= 8; i++) ACTIONS[`tab.${i}`] = () => selectTabIndex(i - 1);
 
@@ -632,7 +810,7 @@ function runAction(id) {
 window.addEventListener(
   'keydown',
   (event) => {
-    if (settingsPanel.isOpen && event.key === 'Escape') return;
+    if ((settingsPanel.isOpen || aboutPanel.isOpen) && event.key === 'Escape') return;
     const id = shortcuts.match(event);
     if (!id || !ACTIONS[id]) return;
     event.preventDefault();
@@ -657,10 +835,12 @@ function publishShortcuts() {
 // ------------------------------------------------------------------ menu wiring
 
 bridge?.onFileOpened(({ path, content }) => openInTab(path, content));
+bridge?.onTabAdopt?.((payload) => adoptTab(payload));
+bridge?.onFileChanged?.(({ path, content }) => fileChangedOnDisk(path, content));
 bridge?.onMenuSave(() => save());
 bridge?.onMenuSaveAs(() => save({ as: true }));
 bridge?.onMenuExportHtml(() => exportHtml());
-bridge?.onMenuFind(() => editor.openSearch());
+bridge?.onMenuFind(() => openFind());
 bridge?.onMenuTheme((theme) => setTheme(theme));
 bridge?.onMenuAction?.((id) => runAction(id));
 
@@ -697,15 +877,20 @@ window.__jmd = {
   editor,
   preview,
   previewEditor,
+  previewFind,
+  openFind,
   setWysiwyg,
   setLayout,
   setTheme,
   setAccent,
   loadDocument,
+  fileChangedOnDisk,
   openInTab,
   openDroppedPaths,
   newTab,
   closeTab,
+  detachTab,
+  adoptTab,
   activateTab,
   syncScroll,
   save,
@@ -714,6 +899,7 @@ window.__jmd = {
   settings,
   shortcuts,
   settingsPanel,
+  aboutPanel,
   runAction,
   tabs,
   get activeTab() {
