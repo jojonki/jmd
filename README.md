@@ -1,223 +1,215 @@
 # jmd
 
-軽量な Markdown エディタである。
-ソースだけ、ソースとプレビューの分割、プレビューだけの三つの表示を持ち、プレビューはそのまま書き換えられる。
-Electron 製で、macOS と Windows で動く。
+A simple, lightweight Markdown editor with source, split, and fully editable
+preview views. Built with Electron for macOS and Windows.
 
-英語版は [README.en.md](README.en.md) にある。
+![jmd: text editing, live split view, rich-text editing, and colour themes](docs/jmd-demo.gif)
 
-![jmd: テキスト編集、分割表示、プレビューでの編集、カラーテーマ](docs/jmd-demo.gif)
+## What it does
 
-## できること
+- **Tabs.** Several documents in one window, each with its own undo history,
+  selection and scroll position. ⌘1…⌘8 jump straight to a tab, ⌘9 to the last
+  one, ⌃⇥ / ⌃⇧⇥ walk the neighbours. Drag a tab to reorder it, or out of the
+  window to move that document — unsaved text included — onto another jmd
+  window, or into one of its own.
+- **Live preview** beside the editor, re-rendered as you type. Only the blocks
+  that actually changed are replaced in the DOM, so scroll position, image
+  decode state and the caret survive a keystroke.
+- **Edit in the preview** (⌘E / Ctrl+E). Type in the rendered document and the
+  markdown source updates under you — see [below](#editing-in-the-preview) for
+  how far that goes.
+- **Find in the preview** (⌘F / ⌘⇧F). Searches the rendered document and paints
+  the hits through the CSS Custom Highlight API, so the preview DOM is left
+  alone and the matches keep up while you edit.
+- **Math** — `$inline$` and `$$display$$`, rendered with KaTeX. `Costs $5 and
+  $6` stays prose; a `$` only opens math when it hugs its content.
+- **Images**, including relative paths, which resolve against the folder of the
+  file you have open.
+- **The usual syntax** plus tables, footnotes, definition lists, task lists,
+  `==highlight==`, `~sub~`/`^sup^`, and syntax-highlighted code fences.
+- **Six colour templates**, covering the editor, the preview and the chrome
+  from a single set of CSS variables — plus an accent colour of your own on top
+  of any of them.
+- **Two column widths.** A normal measure and a wide one, toggled with ⌘⌃W or
+  from the status bar; both are set in rem in Settings › Appearance.
+- **Rebindable keys.** Tab navigation, layouts, in-preview editing, file reveal
+  and Settings are listed in Settings › Shortcuts and can be rebound instantly.
+- **The file's absolute path** sits in the header directly above its active tab;
+  click it to reveal the file in Finder (Explorer on Windows). The status bar
+  reports the current Editor / Split / Preview and preview-editing states.
+- **Follows the disk.** When an open file is rewritten by something else, a tab
+  with no unsaved work reloads it where you were reading; a tab with unsaved
+  work keeps your version and says so in the status bar.
+- **Scroll sync** in both directions, anchored on source lines rather than on a
+  scroll percentage, so long code blocks and images don't drift.
+- **Export to standalone HTML** carrying the current theme.
 
-- **タブ**：一つのウインドウで複数の文書を開く。
-  タブはそれぞれ自分の undo 履歴、選択範囲、スクロール位置を保つ。
-  ⌘1…⌘8 が番号のタブ、⌘9 が末尾のタブ、⌃⇥ と ⌃⇧⇥ が隣のタブに移る。
-  ドラッグで並べ替えられる。
-  ウインドウの外で放すと、その文書だけが新しいウインドウに移り、別の jmd ウインドウの上で放すと、そのウインドウのタブになる。
-- **ライブプレビュー**：入力に追随して描き直す。
-  実際に変わったブロックだけを差し替えるので、スクロール位置、画像のデコード結果、カーソルの位置がキー入力をまたいで残る。
-- **プレビューでの編集**（⌘E / Ctrl+E）：描画された文書の上で直接書くと、Markdown のソースがその下で追随する。
-  どこまで書き換えられるかは後述する。
-- **プレビューの検索**（⌘F / ⌘⇧F）：描画された文書を検索し、一致した箇所を塗る。
-  塗りには CSS Custom Highlight API を使うため、プレビューの DOM には触れない。
-  プレビューを編集しながらでも検索でき、入力に応じて一致箇所も追随する。
-- **数式**：`$inline$` と `$$display$$` を KaTeX で描く。
-  `Costs $5 and $6` は文章のままである。`$` が数式を開くのは、内容に密着しているときに限る。
-- **画像**：相対パスは、開いているファイルのフォルダを基準に解決する。
-- **記法**：見出しや強調に加えて、表、脚注、定義リスト、タスクリスト、`==ハイライト==`、`~下付き~` と `^上付き^`、シンタックスハイライト付きのコードフェンスを解釈する。
-- **6 つのカラーテーマ**：一組の CSS 変数から、エディタ、プレビュー、ウインドウの装飾までを同時に塗る。
-  どのテーマにも、好きなアクセント色を上から重ねられる。
-- **本文の幅**：通常と Wide の二段を持ち、⌘⌃W で切り替える。
-  どちらの幅も設定から rem 単位で決められる。
-- **キー割り当ての変更**：タブの移動、表示の切り替え、プレビューでの編集、プレビューの検索、ファイルの場所を開く操作、設定画面の呼び出しは、設定の Shortcuts から即座に割り当て直せる。
-- **ファイルの絶対パス**：ヘッダの、そのタブの真上に置かれる。
-  クリックすると Finder（Windows では Explorer）で開く。
-  ステータスバーには、現在の表示とプレビュー編集の状態が出る。
-- **外部の変更への追従**：開いているファイルが他のプログラムに書き換わったとき、未保存の変更がないタブは読み込み直す。
-  未保存の変更があるタブは書き換えずに残し、ステータスバーで知らせる。
-- **スクロール同期**：両方向に効く。
-  割合ではなくソースの行を基準に合わせるので、長いコードブロックや画像があってもずれない。
-- **HTML への書き出し**：現在のテーマを持った単一のファイルとして書き出す。
-
-## 動かす
+## Running it
 
 ```sh
 npm install
-npm start          # ビルドしてから起動する
-npm run dev        # vite の開発サーバと electron を並べて起動する
-npm run smoke      # 実物のアプリを端から端まで動かす（`npm run dev` が必要）
-npm run smoke:dist # 同じ検査を、ビルド済みの dist に対して行う
+npm start          # build, then launch
+npm run dev        # vite dev server + electron, with hot reload
+npm run smoke      # drive the real app end to end (needs `npm run dev` running)
+npm run smoke:dist # the same checks, against the built dist
 ```
 
-パッケージングは次の三つで行う。
+Packaging:
 
 ```sh
-npm run dist:mac        # release/ に dmg と zip（配布用。公証あり）
-npm run dist:mac:local  # 手元で動作を見るだけの mac ビルド（公証なし）
-npm run dist:win        # nsis インストーラ
+npm run dist:mac        # dmg + zip in release/ (for distribution, notarized)
+npm run dist:mac:local  # local-only mac build, no notarization
+npm run dist:win        # nsis installer
 ```
 
-### macOS の署名と公証
+### Signing and notarization on macOS
 
-署名はキーチェーンの Developer ID Application 証明書を electron-builder が自動で見つけて行うため、設定は要らない。
-公証は認証情報を環境変数で渡したときだけ走る。渡さなければ警告を出してスキップされる。
+Signing needs no configuration: electron-builder picks up the Developer ID Application
+certificate from the keychain. Notarization only runs when credentials are passed through
+the environment; without them it logs a warning and skips.
 
-認証情報は一度だけキーチェーンに登録しておく。
+Store the credentials in the keychain once:
 
 ```sh
-# https://appleid.apple.com で「App用パスワード」を発行してから
+# after issuing an app-specific password at https://appleid.apple.com
 xcrun notarytool store-credentials jmd-notary \
   --apple-id <Apple ID> --team-id W2Z92AW32J
 ```
 
-以降は環境変数を一つ渡すだけでよい。
+From then on a single environment variable is enough:
 
 ```sh
 APPLE_KEYCHAIN_PROFILE=jmd-notary npm run dist:mac
 ```
 
-electron-builder が公証するのは `.app` だけで、それを包んだ dmg は未署名のまま残る。
-実際にダウンロードされるのは dmg のほうなので、`scripts/notarize-dmg.cjs` を
-`afterAllArtifactBuild` フックに挿して、dmg にも署名・公証・staple をかけている。
-このフックも認証情報が環境にあるときだけ動く。
+electron-builder notarizes the `.app` only, and the dmg wrapped around it ships unsigned.
+The dmg is what people actually download, so `scripts/notarize-dmg.cjs` is hooked into
+`afterAllArtifactBuild` to sign, notarize and staple it too. That hook likewise runs only
+when credentials are present in the environment.
 
-公証まで通ったかどうかは次の二つで確かめる。どちらも `accepted` と出れば、
-ユーザーの手元で警告なしに開ける。
+Verify both with the following. `accepted` on each means it opens without a warning on a
+user's machine.
 
 ```sh
 spctl -a -vvv -t install release/mac-arm64/jmd.app
 spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-arm64.dmg
 ```
 
-バージョンを上げてから GitHub Releases に出すまでの一連の手順は [docs/release.md](docs/release.md) にまとめてある。
+The whole path from bumping the version to publishing on GitHub Releases is written up in
+[docs/release.md](docs/release.md) (in Japanese).
 
-## キーボードショートカット
+## Keyboard shortcuts
 
-| 操作 | macOS | Windows / Linux | 変更 |
+| Action | macOS | Windows / Linux | Rebindable |
 | --- | --- | --- | :---: |
-| タブを開く / 閉じる | ⌘T / ⌘W | Ctrl+T / Ctrl+W | 可 |
-| 1〜8 番目のタブ / 末尾のタブ | ⌘1…⌘8 / ⌘9 | Ctrl+1…Ctrl+8 / Ctrl+9 | 可 |
-| 次 / 前のタブ | ⌘⇥ または ⌃⇥ / ⌘⇧⇥ または ⌃⇧⇥ | Ctrl+Tab / Ctrl+Shift+Tab | 可 |
-| ソース / 分割 / プレビュー | ⌘⌃1 / ⌘⌃2 / ⌘⌃3 | Ctrl+Alt+1 / Ctrl+Alt+2 / Ctrl+Alt+3 | 可 |
-| 幅を広くする / 戻す | ⌘⌃W | Ctrl+Alt+W | 可 |
-| プレビューでの編集の切り替え | ⌘E | Ctrl+E | 可 |
-| プレビューを検索 | ⌘⇧F | Ctrl+Shift+F | 可 |
-| ファイルの場所を開く | ⌘⇧R | Ctrl+Shift+R | 可 |
-| 設定 | ⌘, | Ctrl+, | 可 |
-| 新しいウインドウ / 開く / 保存 | ⌘N / ⌘O / ⌘S | Ctrl+N / Ctrl+O / Ctrl+S | 不可 |
-| 名前を付けて保存 / 検索 | ⌘⇧S / ⌘F | Ctrl+Shift+S / Ctrl+F | 不可 |
-| ウインドウを閉じる | ⌘⇧W | プラットフォームの既定 | 不可 |
-| undo / redo（どちらの面からでも） | ⌘Z / ⌘⇧Z | Ctrl+Z / Ctrl+Y（Linux では Ctrl+Shift+Z） | 不可 |
+| New tab / close tab | ⌘T / ⌘W | Ctrl+T / Ctrl+W | Yes |
+| Select tab 1–8 / last tab | ⌘1…⌘8 / ⌘9 | Ctrl+1…Ctrl+8 / Ctrl+9 | Yes |
+| Next / previous tab | ⌘⇥ or ⌃⇥ / ⌘⇧⇥ or ⌃⇧⇥ | Ctrl+Tab / Ctrl+Shift+Tab | Yes |
+| Editor / split / preview | ⌘⌃1 / ⌘⌃2 / ⌘⌃3 | Ctrl+Alt+1 / Ctrl+Alt+2 / Ctrl+Alt+3 | Yes |
+| Toggle wide width | ⌘⌃W | Ctrl+Alt+W | Yes |
+| Toggle editing in the preview | ⌘E | Ctrl+E | Yes |
+| Find in the preview | ⌘⇧F | Ctrl+Shift+F | Yes |
+| Reveal in Finder / file manager | ⌘⇧R | Ctrl+Shift+R | Yes |
+| Settings | ⌘, | Ctrl+, | Yes |
+| New window / open / save | ⌘N / ⌘O / ⌘S | Ctrl+N / Ctrl+O / Ctrl+S | No |
+| Save as / find | ⌘⇧S / ⌘F | Ctrl+Shift+S / Ctrl+F | No |
+| Close window | ⌘⇧W | Platform default | No |
+| Undo / redo, from either pane | ⌘Z / ⌘⇧Z | Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z on Linux) | No |
 
-⌘F は、いま作業している側を検索する。
-プレビューにカーソルがあるか、プレビューだけを表示しているときは描画された文書を、それ以外ではソースを検索する。
-どちらを表示していても描画された文書を検索したいときは ⌘⇧F を使う。
+⌘F searches whichever side you are working in: the rendered document when the
+preview holds the caret or is alone on screen, the source otherwise. ⌘⇧F always
+searches the rendered document.
 
-割り当てを変えられる操作は、**設定の Shortcuts** に並んでいる。
-現在のキーをクリックして新しい組み合わせを押すと、その場で反映され、アプリケーションメニューの表示も同時に変わる。
-macOS では ⌘、⌃、⌥ のいずれか、Windows と Linux では Ctrl か Alt が最低一つ必要になる（ファンクションキーだけでもよい）。
-通常の入力が奪われないようにするための制限である。
-一つの操作に複数のキーを割り当ててもよい。
+Rebindable commands live in **Settings › Shortcuts**. Click a shortcut and
+press a new combination; the change applies immediately and the application
+menu updates with it. A binding needs at least one of ⌘, ⌃ or ⌥ on macOS, or
+Ctrl or Alt on Windows and Linux (function keys also work), so ordinary typing
+is never captured. Each action can have more than one binding.
 
-なお macOS は ⌘⇥ を自前のアプリケーション切り替えに使うため、アプリには届かない。
-既定では、実際に jmd まで届く **⌃⇥ と ⌃⇧⇥ も同時に割り当ててある**。
-好きなほうに変更してよい。
+macOS keeps ⌘⇥ for its own application switcher, so an app never sees it: the
+bindings are there as asked, and **⌃⇥ / ⌃⇧⇥ are bound alongside them** as the
+combination that actually reaches jmd. Rebind whichever pair you prefer.
 
-分割の境目はドラッグで動かせる。
-ダブルクリックすると 50/50 に戻る。
-プレビューのブロックをダブルクリックすると、ソースのカーソルがその行に飛ぶ。
-プレビューだけの表示（⌘⌃3）に切り替えると、プレビューでの編集も一緒に有効になる。
-その表示で編集以外にできることがないためである。
-⌘⌃1 で戻すと、編集も一緒に切れる。
+Drag the divider to resize the panes; double-click it to reset to 50/50.
+Double-click any preview block to jump the source caret to that line.
+Preview-only (⌘⌃3) turns on in-preview editing for you, since editing is the only
+thing that pane is there for; ⌘⌃1 turns it back off.
 
-本文の幅は通常と Wide の二段で持つ。
-⌘⌃W か、ステータスバーの幅の表示か、設定の Appearance で切り替える。
-大きな画面や表の多い文書では Wide が効き、散文を書くあいだは通常の幅に戻せばよい。
-二つの幅そのものも設定から変えられる。
-既定は通常が 46rem、Wide が 72rem である。
-エディタとプレビューは同じ幅を読むので、切り替えると両方が一緒に動く。
+The text column has two widths rather than one. ⌘⌃W switches between them, as
+does the width reading in the status bar and Settings › Appearance. Wide earns
+its keep on a large display or a table-heavy document; the normal measure is
+where prose belongs. Both widths are yours to set — 46rem and 72rem by default —
+and the editor and the preview read the same one, so they widen together.
 
-## タブを引き出す、戻す
+## Moving tabs between windows
 
-タブをウインドウの外へドラッグして放すと、その文書は放した場所へ移る。
-何もない場所であれば、そこに新しいウインドウが開く。
-別の jmd ウインドウの上であれば、そのウインドウのタブとして加わり、そのウインドウが前に出る。
-どちらの場合も、未保存のテキストと保存済みかどうかの状態がそのまま移るため、途中まで書いた文書を引き出しても書きかけのまま続けられる。
+Let a tab go outside its window and the document moves to wherever you dropped
+it. Over another jmd window, it joins that window's tabs and the window comes
+forward; over nothing, a new window opens on the spot. Either way the unsaved
+text and the saved-or-not state travel with it, so a half-written document
+stays half-written on the other side.
 
-移した結果、元のウインドウにタブが残らなくなったときは、そのウインドウが閉じる。
-タブが一枚しかないウインドウから何もない場所へ引き出す操作だけは何も起こらない。
-ウインドウを閉じて同じものを開き直すだけの操作になるためである。
+A window with no tabs left closes itself. The one gesture that does nothing is
+dragging a window's only tab onto empty space, which would close that window
+and open an identical one.
 
-## プレビューでの編集
+## Editing in the preview
 
-正となる文書は、あくまで Markdown のソースである。
-プレビューに書き込むと、jmd は入力が途切れるのを待ち、**触れたブロックだけ**を Markdown に戻して、その行をソースに差し込む。
-触れていない部分は元の書き方のまま残る。
-`*` と `_` のどちらを使っていたか、どこで改行していたか、生の HTML を書いていたかが変わらない。
-文書全体を往復させればすべてが正規化されてしまうため、その方法を採っていない。
+The markdown source stays the single source of truth. When you type in the
+preview, jmd waits for a pause, converts **only the blocks you touched** back to
+markdown, and splices those lines into the source. Everything you didn't touch
+keeps its exact original formatting — your choice of `*` vs `_`, your line
+wrapping, your raw HTML. A whole-document round trip would normalise all of it,
+which is why it doesn't do that.
 
-HTML を往復すると情報が落ちるブロックは、この表示では読み取り専用になり、そのように表示される。
-**数式、コードフェンス、生の HTML** の三つである。
-クリックすると、ソース側のカーソルがそのブロックに移る。
+Blocks whose markup cannot survive an HTML round trip are read-only in this
+mode and marked as such: **math, code fences and raw HTML**. Clicking one jumps
+the source caret to it so you can edit it on the left.
 
-それ以外の段落、見出し、リスト、表、リンク、強調は、その場で書き換えられる。
-Enter を押せば、新しいブロックがそこに生まれる。
+Everything else — paragraphs, headings, lists, tables, links, emphasis — is
+editable in place, and pressing Enter creates real new blocks.
 
-## ファイルが外で書き換わったとき
-
-jmd は、開いているファイルをメインプロセスで監視している。
-他のエディタや `git checkout` がファイルを書き換えると、そのファイルを開いているタブのうち、未保存の変更がないものは新しい内容を読み込み直す。
-読んでいた位置は保たれる。
-
-未保存の変更があるタブは書き換えない。
-ステータスバーが「changed on disk」と知らせるだけで、どちらを残すかの判断は書き手に委ねられる。
-保存すればその内容がファイルの内容になり、通知も止まる。
-
-自分の保存はこの仕組みの対象外である。
-書き込んだ内容を覚えているので、それが監視から戻ってきても外部の変更とは見なさない。
-
-## 構成
+## Layout
 
 ```
-electron/          メインプロセス。ウインドウ、メニュー、ファイルダイアログ、
-                   ファイル監視、jmd-file:// スキーム
+electron/          main process: windows, menus, file dialogs, file watching,
+                   the jmd-file:// scheme
 src/
-  main.js          全体の配線。タブ、表示、テーマ、スクロール同期、ファイル入出力
-  tabs.js          タブの帯。選択、閉じる操作、並べ替え、ウインドウ外への切り離し
-  shortcuts.js     操作の識別子、キーの割り当て、キーイベントとの対応づけ
-  settings-panel.js  設定ダイアログ。テーマ、アクセント色、ショートカット
-  about-panel.js   About ダイアログ。バージョン、開発者、リポジトリ、スポンサー
-  editor/          CodeMirror 6 のソース面
-  markdown/        markdown-it のパイプラインと KaTeX プラグイン
-  preview/         描画、DOM のパッチ、プレビューでの編集、プレビューの検索
-  styles/          ウインドウの装飾、プレビューの組版、カラーテーマ
-test/smoke.cjs     実物の Electron ウインドウに対する通しの検査
+  main.js          wiring: tabs, layout, themes, scroll sync, file access
+  tabs.js          the tab strip (selection, closing, drag to reorder or detach)
+  shortcuts.js     action ids, key bindings, and how a key event maps to one
+  settings-panel.js  the settings dialog: skin, accent colour, shortcuts
+  about-panel.js   the about dialog: version, developer, repository, sponsorship
+  editor/          CodeMirror 6 source pane
+  markdown/        markdown-it pipeline + the KaTeX plugin
+  preview/         rendering, DOM patching, the in-preview editor, and find
+  styles/          app chrome, preview typography, colour templates
+test/smoke.cjs     end-to-end checks against a real Electron window
 ```
 
-描画された HTML は DOMPurify を通してから DOM に入る。
-ローカルのファイルは、CSP を緩めるのではなく専用の `jmd-file://` スキームで配信している。
-レンダラは context isolation 付きのサンドボックスで動く。
+The renderer is sandboxed with context isolation; rendered HTML goes through
+DOMPurify before it reaches the DOM, and local files are served over a
+dedicated `jmd-file://` scheme rather than by relaxing the CSP.
 
-キーの割り当てを持っているのはメニューではなくレンダラである。
-アプリケーションメニューは現在のキーを表示するだけで、macOS では登録もしない。
-割り当てを変えたときに、何も作り直さずその場で効くのはこのためである。
+Key bindings live in the renderer, not in the menu: the application menu shows
+the current accelerator but (on macOS) does not register it, so a rebind takes
+effect immediately without rebuilding anything.
 
-## テーマを追加する
+## Adding a theme
 
-`src/styles/themes.css` に CSS 変数の塊を一つ足し、`src/themes.js` のリストに一行加える。
-どのテーマも同じ変数の語彙を埋めるので、既存のものを写して色だけ変えればよい。
-他に手を入れる場所はない。
-設定ダイアログの見本は、そのテーマ自身の変数から組み立てられる。
+Add a block of CSS variables to `src/styles/themes.css` (copy an existing one —
+every theme sets the same token vocabulary) and one entry to the list in
+`src/themes.js`. Nothing else needs to change; the settings dialog builds its
+swatch from the theme's own tokens.
 
-選択範囲には二つの変数を使う。
-`--selection` が文字の背後に敷く帯、`--selection-fg` が選択された文字の色である。
-プレビューにはリンクやコード、強調のように色のついた文字が並ぶため、帯だけを決めても読みやすさは決まらない。
-文字の色も一緒に指定する。
+Selected text takes two of those tokens: `--selection` for the band behind it
+and `--selection-fg` for the text itself. The preview is full of coloured text
+(links, code, emphasis), so a band alone does not settle how readable a
+selection is — pick the foreground too.
 
-## ショートカットを追加する
+## Adding a shortcut
 
-`src/shortcuts.js` の `ACTION_GROUPS` に、既定のキーとともに項目を足す。
-続けて `src/main.js` の `ACTIONS` に、同じ識別子で処理を書く。
-これで設定ダイアログに現れる。
-メニューにも出したい場合は、`electron/main.js` で `actionItem()` を一つ加える。
+Add an entry to `ACTION_GROUPS` in `src/shortcuts.js` with a default binding,
+then a handler under the same id in the `ACTIONS` table in `src/main.js`. It
+shows up in the settings dialog, and in the menu if you also add an
+`actionItem()` for it in `electron/main.js`.
