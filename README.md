@@ -58,6 +58,9 @@ npm run dist:mac:local  # 手元で動作を見るだけの mac ビルド（公�
 npm run dist:win        # nsis インストーラ
 ```
 
+Windows の実行ファイルとショートカットには `build/icon.ico` を使う。
+元絵を変更したときは macOS で `npm run icon` を実行し、PNG、ICNS、ICO をまとめて作り直す。
+
 ### macOS の署名と公証
 
 署名はキーチェーンの Developer ID Application 証明書を electron-builder が自動で見つけて行うため、設定は要らない。

@@ -63,6 +63,10 @@ npm run dist:mac:local  # local-only mac build, no notarization
 npm run dist:win        # nsis installer
 ```
 
+The Windows executable and its shortcuts use `build/icon.ico`. After changing
+the source artwork, run `npm run icon` on macOS to regenerate the PNG, ICNS,
+and ICO assets together.
+
 ### Signing and notarization on macOS
 
 Signing needs no configuration: electron-builder picks up the Developer ID Application
