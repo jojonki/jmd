@@ -39,7 +39,7 @@
   --bg-inset: #f6f8fa;
   --fg: #1f2328;
   --fg-muted: #656d76;
-  --fg-faint: #a0a6ad;
+  --fg-faint: #8d949c;
   --border: #d1d9e0;
   --border-strong: #b8c0c8;
   --accent: #0969da;
@@ -47,7 +47,11 @@
   --link: #0969da;
   --selection: #b6d7ffcc;
   --selection-fg: #0d1117;
-  --active-line: #f6f8fa;
+  /* Translucent, not the flat `--bg-elevated` it visually matches at rest:
+     `.cm-line.cm-activeLine` paints as ordinary in-flow content, in front of
+     the negative-z-index `.cm-selectionLayer` behind it — an opaque line
+     colour would fully hide a selection made on the cursor's own line. */
+  --active-line: #f0f3f799;
   --caret: #0969da;
   --match: #fff8c5;
   --match-active: #ffdf5d;
@@ -77,7 +81,7 @@
   --bg-inset: #f3ede3;
   --fg: #33302b;
   --fg-muted: #7a736a;
-  --fg-faint: #b0a89c;
+  --fg-faint: #998f80;
   --border: #e2d9cb;
   --border-strong: #cec3b1;
   --accent: #a4560f;
@@ -85,7 +89,7 @@
   --link: #a4560f;
   --selection: #e6d3a8cc;
   --selection-fg: #241f18;
-  --active-line: #f5efe6;
+  --active-line: #f1e9dd99;
   --caret: #a4560f;
   --match: #f0e2c0;
   --match-active: #e3cb92;
@@ -115,16 +119,16 @@
   --bg-elevated: #eee8d5;
   --bg-inset: #eee8d5;
   --fg: #586e75;
-  --fg-muted: #93a1a1;
-  --fg-faint: #b3bcbc;
+  --fg-muted: #758787;
+  --fg-faint: #829191;
   --border: #e0dac4;
   --border-strong: #ccc5b0;
   --accent: #268bd2;
-  --accent-fg: #fdf6e3;
+  --accent-fg: #101215;
   --link: #268bd2;
   --selection: #bfdcea;
   --selection-fg: #073642;
-  --active-line: #f4edda;
+  --active-line: #eee7d499;
   --caret: #268bd2;
   --match: #f2e7bd;
   --match-active: #e4d191;
@@ -154,7 +158,7 @@
   --bg-inset: #3b4252;
   --fg: #e5e9f0;
   --fg-muted: #a5aec0;
-  --fg-faint: #6f7a8f;
+  --fg-faint: #757f94;
   --border: #434c5e;
   --border-strong: #4c566a;
   --accent: #88c0d0;
@@ -162,10 +166,10 @@
   --link: #88c0d0;
   --selection: #4c566acc;
   --selection-fg: #eceff4;
-  --active-line: #353c4a;
+  --active-line: #3b43528c;
   --caret: #88c0d0;
   --match: #4c566a;
-  --match-active: #5e81ac;
+  --match-active: #4d6d95;
   --code-bg: #3b4252;
   --code-fg: #e5e9f0;
   --quote-border: #4c566a;
@@ -200,10 +204,10 @@
   --link: #8be9fd;
   --selection: #44475a;
   --selection-fg: #f8f8f2;
-  --active-line: #2f3242;
+  --active-line: #35394c8c;
   --caret: #ff79c6;
   --match: #44475a;
-  --match-active: #6272a4;
+  --match-active: #5f6fa2;
   --code-bg: #343746;
   --code-fg: #f8f8f2;
   --quote-border: #6272a4;
@@ -238,7 +242,7 @@
   --link: #83a598;
   --selection: #504945;
   --selection-fg: #fbf1c7;
-  --active-line: #262829;
+  --active-line: #2d2f308c;
   --caret: #fabd2f;
   --match: #504945;
   --match-active: #665c54;

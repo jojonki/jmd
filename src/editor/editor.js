@@ -158,6 +158,23 @@ const baseTheme = EditorView.theme({
     borderRadius: '4px',
     padding: '2px 6px',
   },
+  // CodeMirror's own base theme paints `.cm-button` with a fixed light-grey
+  // gradient (`backgroundImage`, not `backgroundColor`) unless the editor is
+  // flagged dark — which this app never does, since it's one token set for
+  // every skin rather than a light/dark pair. Left alone, that gradient sits
+  // opaque on top of the `backgroundColor` above, so on dark themes the fg
+  // token used for the label text (light) lands on a light background too.
+  '.cm-panel button': {
+    backgroundImage: 'none',
+  },
+  '.cm-panel button:hover': {
+    backgroundColor: 'var(--bg-elevated)',
+    borderColor: 'var(--border-strong)',
+  },
+  '.cm-panel button:active': {
+    backgroundImage: 'none',
+    backgroundColor: 'var(--active-line)',
+  },
   '.cm-textfield': { backgroundColor: 'var(--bg)' },
 });
 

@@ -95,12 +95,16 @@ export function normalizeHex(color) {
   return null;
 }
 
-/** Black or white, whichever stays legible on `hex`. */
+/** Black or white, whichever gives the higher contrast ratio against `hex`. */
 export function readableOn(hex) {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
   const channel = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
   const luminance = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-  return luminance > 0.45 ? '#101215' : '#ffffff';
+  // WCAG contrast ratio against black (luminance 0) and white (luminance 1),
+  // simplified since one side of each pair is a constant 0 or 1.
+  const contrastWithBlack = (luminance + 0.05) / 0.05;
+  const contrastWithWhite = 1.05 / (luminance + 0.05);
+  return contrastWithBlack >= contrastWithWhite ? '#101215' : '#ffffff';
 }
 
 /** The theme's own accent, read from CSS — used to seed the colour picker. */

@@ -213,3 +213,7 @@ Add an entry to `ACTION_GROUPS` in `src/shortcuts.js` with a default binding,
 then a handler under the same id in the `ACTIONS` table in `src/main.js`. It
 shows up in the settings dialog, and in the menu if you also add an
 `actionItem()` for it in `electron/main.js`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
