@@ -17,6 +17,9 @@ The Windows build is an x64 NSIS installer. It is not code-signed, so Windows
 SmartScreen may display a warning. SHA-256:
 `e2024e37bc31db3490916f59dfa5c0919cf068e9d362bb0fbf6d931ea6a0aa31`.
 
+The macOS builds are still in progress and will be added to this release when
+they are ready.
+
 ## What changed since v0.1.0
 
 - **Selection was invisible on the current line, in every theme.** The
