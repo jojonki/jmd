@@ -5,7 +5,13 @@ all six themes.
 
 | File | For |
 | --- | --- |
+| `jmd-0.1.1-arm64.dmg` | macOS — Apple Silicon |
 | `jmd.Setup.0.1.1.exe` | Windows — x64 installer |
+
+Apple Silicon only on macOS; the Intel (x64) build has been discontinued. The
+macOS build is signed with a Developer ID certificate and notarized by Apple,
+so it opens without a Gatekeeper warning. Install from the dmg; the zip is
+there for a future auto-updater.
 
 The Windows build is an x64 NSIS installer. It is not code-signed, so Windows
 SmartScreen may display a warning. SHA-256:
