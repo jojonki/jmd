@@ -39,10 +39,10 @@ rm -rf release
 APPLE_KEYCHAIN_PROFILE=jmd-notary npm run dist:mac
 ```
 
-arm64 と x64 それぞれの dmg と zip が `release/` に出る。
+arm64 の dmg と zip が `release/` に出る（Apple Silicon 専用。Intel 版の x64 ビルドは廃止した）。
 
 公証は Apple のサーバとのやり取りを伴うため、成果物ごとに数分かかる。
-アプリ2本と dmg 2本で計4回の送信になるので、全体で20分から30分を見ておく。
+アプリ1本と dmg 1本で計2回の送信になる。
 
 環境変数を渡さないと公証は警告を出してスキップされる。
 手元で動作を見るだけなら `npm run dist:mac:local` を使う。
@@ -56,14 +56,10 @@ electron-builder が公証するのはアプリだけで、それを包んだ dm
 
 ```sh
 spctl -a -vvv -t install release/mac-arm64/jmd.app
-spctl -a -vvv -t install release/mac/jmd.app
 spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-arm64.dmg
-spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-x64.dmg
 ```
 
-x64 のアプリが `release/mac` に出るのは electron-builder の既定である（arm64 は `release/mac-arm64`）。
-
-4つとも `accepted` と `source=Notarized Developer ID` が出れば配布できる。
+2つとも `accepted` と `source=Notarized Developer ID` が出れば配布できる。
 `source=Unnotarized Developer ID` が出た場合は署名だけが済んで公証が飛んでいる。
 環境変数 `APPLE_KEYCHAIN_PROFILE` を渡し忘れていないか確認する。
 
@@ -77,9 +73,7 @@ gh release create v0.1.0 --draft --target main \
   --title "jmd v0.1.0" \
   --notes-file docs/release-notes-v0.1.0.md \
   release/jmd-0.1.0-arm64.dmg \
-  release/jmd-0.1.0-x64.dmg \
-  release/jmd-0.1.0-arm64.zip \
-  release/jmd-0.1.0-x64.zip
+  release/jmd-0.1.0-arm64.zip
 ```
 
 zip を併せて上げているのは、将来 electron-updater による自動更新を入れるときに必要になるためである。
@@ -87,7 +81,7 @@ zip を併せて上げているのは、将来 electron-updater による自動�
 
 リリースノートには次を書く。
 
-- Apple Silicon 版と Intel 版の選び方（`arm64` が Apple Silicon、`x64` が Intel）
+- Apple Silicon 専用であること（Intel 版の x64 ビルドは廃止した）
 - 署名と公証を通しているので、警告なしにそのまま開けること
 - 主な機能と、前回からの変更点
 
@@ -128,6 +122,4 @@ Windows には Apple のような公証はないが、署名のない実行フ�
 
 ## 未確認の項目
 
-- x64 のビルドは最後まで通していない。初回は成果物のファイル名と `spctl` の結果を必ず確認する。
-- `artifactName` を明示して `jmd-0.1.0-x64.dmg` の形に固定してあるが、この命名での出力も未確認である。
 - Windows 版のビルドは未着手である。

@@ -5,12 +5,12 @@ all six themes.
 
 | File | For |
 | --- | --- |
-| `jmd-0.1.1-arm64.dmg` | Apple Silicon |
-| `jmd-0.1.1-x64.dmg` | Intel |
+| `jmd-0.1.1-arm64.dmg` | macOS — Apple Silicon |
 
-Both builds are signed with a Developer ID certificate and notarized by Apple,
-so they open without a Gatekeeper warning. Install from the dmg; the zips are
-there for a future auto-updater.
+Apple Silicon only; the Intel (x64) build has been discontinued. The build is
+signed with a Developer ID certificate and notarized by Apple, so it opens
+without a Gatekeeper warning. Install from the dmg; the zip is there for a
+future auto-updater.
 
 ## What changed since v0.1.0
 
