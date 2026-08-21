@@ -47,6 +47,12 @@ preview views. Built with Electron for macOS and Windows.
   scroll percentage, so long code blocks and images don't drift.
 - **Export to standalone HTML** carrying the current theme.
 
+## Getting it
+
+Built apps for macOS (Apple Silicon) and Windows are on the
+[releases page](https://github.com/jojonki/jmd/releases/latest). The macOS dmg
+is signed and notarized, so it opens without a Gatekeeper warning.
+
 ## Running it
 
 ```sh
@@ -95,7 +101,7 @@ user's machine.
 
 ```sh
 spctl -a -vvv -t install release/mac-arm64/jmd.app
-spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-arm64.dmg
+spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.2-arm64.dmg
 ```
 
 The whole path from bumping the version to publishing on GitHub Releases is written up in
