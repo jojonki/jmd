@@ -25,7 +25,7 @@ xcrun notarytool history --keychain-profile jmd-notary
 ## 1. バージョンを上げる
 
 `package.json` の `version` を更新する。
-成果物のファイル名はこの値から決まるので、以降の手順に出てくる `0.1.0` は読み替える。
+成果物のファイル名はこの値から決まるので、以降の手順に出てくる `0.1.2` は読み替える。
 
 リリースするコミットは push しておく。
 タグとバイナリの中身が食い違わないよう、作業を未コミットのまま残さない。
@@ -56,7 +56,7 @@ electron-builder が公証するのはアプリだけで、それを包んだ dm
 
 ```sh
 spctl -a -vvv -t install release/mac-arm64/jmd.app
-spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-arm64.dmg
+spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.2-arm64.dmg
 ```
 
 2つとも `accepted` と `source=Notarized Developer ID` が出れば配布できる。
@@ -69,11 +69,11 @@ spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.0-arm6
 まずドラフトで作り、内容を確認してから公開する。
 
 ```sh
-gh release create v0.1.0 --draft --target main \
-  --title "jmd v0.1.0" \
-  --notes-file docs/release-notes-v0.1.0.md \
-  release/jmd-0.1.0-arm64.dmg \
-  release/jmd-0.1.0-arm64.zip
+gh release create v0.1.2 --draft --target main \
+  --title "jmd v0.1.2" \
+  --notes-file docs/release-notes-v0.1.2.md \
+  release/jmd-0.1.2-arm64.dmg \
+  release/jmd-0.1.2-arm64.zip
 ```
 
 zip を併せて上げているのは、将来 electron-updater による自動更新を入れるときに必要になるためである。
@@ -88,7 +88,7 @@ zip を併せて上げているのは、将来 electron-updater による自動�
 確認できたらブラウザか次のコマンドで公開する。
 
 ```sh
-gh release edit v0.1.0 --draft=false
+gh release edit v0.1.2 --draft=false
 ```
 
 ## 更新版を出すときにユーザーが行うこと
@@ -107,12 +107,12 @@ gh release edit v0.1.0 --draft=false
 
 ## Windows 版を追加する
 
-Windows 版はまだビルドしていない。
-用意できたら、同じリリースに後から足せる。
+Windows 版は Windows 機で別にビルドし、同じリリースに後から足す。
+macOS 版を先に公開してしまってかまわない。
 
 ```sh
 npm run dist:win
-gh release upload v0.1.0 "release/jmd Setup 0.1.0.exe"
+gh release upload v0.1.2 "release/jmd Setup 0.1.2.exe"
 ```
 
 ファイル名は electron-builder の nsis 既定によるものなので、実際の出力を `ls release` で確認してから指定する。
@@ -127,4 +127,4 @@ Windows には Apple のような公証はないが、署名のない実行フ�
 
 ## 未確認の項目
 
-- Windows 版のビルドは未着手である。
+- Windows 版には署名を入れていない。
