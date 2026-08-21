@@ -117,6 +117,11 @@ gh release upload v0.1.0 "release/jmd Setup 0.1.0.exe"
 
 ファイル名は electron-builder の nsis 既定によるものなので、実際の出力を `ls release` で確認してから指定する。
 
+`dist:win` に付いている `-c.extraMetadata.description=jmd` は消さないこと。
+electron-builder は exe のバージョン情報の `FileDescription` を `description || productName` の順で埋めるが、
+Windows のシェルはこの `FileDescription` を「プログラムから開く」一覧の表示名に使う。
+上書きしないと `package.json` の説明文がそのままアプリ名として出てしまう。
+
 Windows には Apple のような公証はないが、署名のない実行ファイルは SmartScreen が警告を出す。
 警告を消すにはコードサイニング証明書が別途要る。
 
