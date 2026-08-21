@@ -466,6 +466,41 @@ body.is-file-dragging #panes::after {
   transition: opacity 0.4s ease;
 }
 
+/* The vim mode, as a pill beside the editing mode. It reads as a badge rather
+   than as more status text because it changes under your hands. */
+.sb-vim {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 3px;
+  color: var(--accent-fg);
+  background: var(--fg-faint);
+}
+
+.sb-vim[hidden] {
+  display: none;
+}
+
+.sb-vim[data-mode='normal'] {
+  background: var(--accent);
+}
+
+.sb-vim[data-mode='insert'] {
+  background: var(--syn-string);
+}
+
+.sb-vim[data-mode='visual'] {
+  background: var(--syn-heading);
+}
+
+.sb-vim[data-mode='replace'] {
+  background: var(--syn-keyword);
+}
+
 /* The active document lives beside its mode, directly above the tab names. */
 .doc-path {
   display: flex;
@@ -685,6 +720,52 @@ body.is-file-dragging #panes::after {
 .width-value {
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* -------------------------------------------------------------- vim keys */
+
+.vim-help {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vim-help-row {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 11.5px;
+}
+
+.vim-help-name {
+  color: var(--fg-muted);
+}
+
+.vim-help-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+/* Keys that belong to one idea stay together, so `d c y p` does not read as a
+   single run with `dd cc yy`. */
+.vim-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.vim-help kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  padding: 1px 5px;
+  color: var(--fg);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------- skins */
@@ -969,6 +1050,40 @@ body.is-file-dragging #panes::after {
 
 .about-heart {
   color: #db61a2;
+}
+
+/* --------------------------------------------------------------------- vim */
+
+/* The vim block cursor and its `:` line ship with colours of their own, set
+   through CodeMirror's style modules. Those mount at the very top of `<head>`,
+   so a plain rule here outranks them at equal specificity and the caret follows
+   the skin like every other one. */
+.cm-editor .cm-fat-cursor {
+  background: var(--caret);
+  color: var(--bg);
+}
+
+.cm-editor:not(.cm-focused) .cm-fat-cursor {
+  background: none;
+  outline: 1px solid var(--caret);
+}
+
+/* The panel that carries `:command`, `/search` and vim's own messages. */
+.cm-editor .cm-vim-panel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 3px 12px;
+  color: var(--fg);
+}
+
+.cm-editor .cm-vim-panel input {
+  flex: 1;
+  font: inherit;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  padding: 0;
+  caret-color: var(--caret);
 }
 
 /* Thin, unobtrusive scrollbars in both panes. */

@@ -32,6 +32,9 @@ preview views. Built with Electron for macOS and Windows.
   of any of them.
 - **Two column widths.** A normal measure and a wide one, toggled with ⌘⌃W or
   from the status bar; both are set in rem in Settings › Appearance.
+- **Vim mode** for the source pane (⌘⌃V), off unless you turn it on. Operators,
+  motions, counts, text objects, registers, marks, macros, `/` search and a `:`
+  line that knows about jmd's own documents — see [below](#vim-mode).
 - **Rebindable keys.** Tab navigation, layouts, in-preview editing, file reveal
   and Settings are listed in Settings › Shortcuts and can be rebound instantly.
 - **The file's absolute path** sits in the header directly above its active tab;
@@ -108,6 +111,7 @@ The whole path from bumping the version to publishing on GitHub Releases is writ
 | Editor / split / preview | ⌘⌃1 / ⌘⌃2 / ⌘⌃3 | Ctrl+Alt+1 / Ctrl+Alt+2 / Ctrl+Alt+3 | Yes |
 | Toggle wide width | ⌘⌃W | Ctrl+Alt+W | Yes |
 | Toggle editing in the preview | ⌘E | Ctrl+E | Yes |
+| Toggle vim mode | ⌘⌃V | Ctrl+Alt+V | Yes |
 | Find in the preview | ⌘⇧F | Ctrl+Shift+F | Yes |
 | Reveal in Finder / file manager | ⌘⇧R | Ctrl+Shift+R | Yes |
 | Settings | ⌘, | Ctrl+, | Yes |
@@ -169,6 +173,44 @@ the source caret to it so you can edit it on the left.
 Everything else — paragraphs, headings, lists, tables, links, emphasis — is
 editable in place, and pressing Enter creates real new blocks.
 
+## Vim mode
+
+Off by default. Turn it on in **Settings › Editor** or with ⌘⌃V, and the source
+pane becomes modal: the status bar grows a badge reading NORMAL, INSERT, VISUAL,
+V-LINE, V-BLOCK or REPLACE, with a half-typed command shown beside it the way
+vim's own `showcmd` does. The setting is remembered, and it applies to every
+tab, including the ones already open.
+
+The editing model is CodeMirror's vim keymap, so it composes rather than
+enumerates: operators (`d c y > <`), motions (`w b e f t % gg G { }`), counts
+(`d2w`, `5dd`), text objects (`iw`, `a"`, `ip`), registers, marks, macros, `.`,
+`/` and `?` with `n` / `N`, and `:%s/old/new/g`. Settings › Editor lists the
+common ground as a reminder.
+
+Four ex commands act on the document in front of you rather than on a file vim
+picked out:
+
+| Command | What it does |
+| --- | --- |
+| `:w` | Save, the same as ⌘S. Untitled documents get the usual Save dialog. |
+| `:wq`, `:x` | Save, then close the tab. |
+| `:q`, `:q!` | Close the tab; `!` skips the question about unsaved work. |
+| `:qa`, `:qa!` | Close the window, tab by tab. |
+
+Vim mode is the **source pane's** mode, and only the source pane's. The preview
+is a contenteditable surface with its own idea of what a keystroke means, so
+neither in-preview editing (⌘E) nor preview-only (⌘⌃3) is modal — the badge
+disappears along with the pane it describes rather than reporting a mode nothing
+is listening in.
+
+Turning vim on therefore hands the keyboard back to the source: it leaves
+preview-only for the split, switches in-preview editing off, and puts the caret
+on the left. ⌘E and ⌘⌃3 stay yours to press afterwards, and vim is still waiting
+in the source when you come back.
+
+Application shortcuts keep working throughout — they are matched before the
+editor sees the key — so ⌘S saves in insert mode just as it does anywhere else.
+
 ## Layout
 
 ```
@@ -178,9 +220,9 @@ src/
   main.js          wiring: tabs, layout, themes, scroll sync, file access
   tabs.js          the tab strip (selection, closing, drag to reorder or detach)
   shortcuts.js     action ids, key bindings, and how a key event maps to one
-  settings-panel.js  the settings dialog: skin, accent colour, shortcuts
+  settings-panel.js  the settings dialog: skin, accent colour, editor, shortcuts
   about-panel.js   the about dialog: version, developer, repository, sponsorship
-  editor/          CodeMirror 6 source pane
+  editor/          CodeMirror 6 source pane, and the vim mode layered over it
   markdown/        markdown-it pipeline + the KaTeX plugin
   preview/         rendering, DOM patching, the in-preview editor, and find
   styles/          app chrome, preview typography, colour templates

@@ -1,4 +1,4 @@
-import { EditorState, Prec } from '@codemirror/state';
+import { Compartment, EditorState, Prec } from '@codemirror/state';
 import {
   EditorView,
   keymap,
@@ -25,6 +25,7 @@ import {
 } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
 import { tags as t } from '@lezer/highlight';
+import { vimExtension, watchVim } from './vim.js';
 
 /**
  * Markdown syntax colouring. Every colour is a CSS variable so switching the
@@ -182,12 +183,17 @@ export class Editor {
   /**
    * @param {HTMLElement} parent
    * @param {{ onChange?: (doc: string) => void, onScroll?: () => void,
-   *           onCursor?: (state: EditorState) => void }} options
+   *           onCursor?: (state: EditorState) => void,
+   *           onVim?: (status: import('./vim.js').VimStatus|null) => void }} options
    */
   constructor(parent, options = {}) {
     this.options = options;
     /** Suppresses onChange while we apply a programmatic edit. */
     this.applyingRemoteEdit = false;
+    /** Vim mode, off unless the settings turn it on. */
+    this.vim = false;
+    /** Holds the vim extension so it can be swapped without rebuilding a state. */
+    this.vimCompartment = new Compartment();
 
     const updateListener = EditorView.updateListener.of((update) => {
       if (update.docChanged && !this.applyingRemoteEdit) {
@@ -239,14 +245,46 @@ export class Editor {
 
   /** A detached state for a document the view is not currently showing. */
   createState(text) {
-    return EditorState.create({ doc: text, extensions: this.extensions });
+    return EditorState.create({
+      doc: text,
+      extensions: [this.vimCompartment.of(vimExtension(this.vim)), ...this.extensions],
+    });
   }
 
   /** Swap the whole document — history, selection and all — into the view. */
   setState(state) {
     this.applyingRemoteEdit = true;
-    this.view.setState(state);
+    // A tab parked while vim mode was in the other setting still carries that
+    // configuration; reconciling on the way in is what spares every other tab
+    // from being walked whenever the setting changes.
+    this.view.setState(this.#withVim(state));
     this.applyingRemoteEdit = false;
+    this.#reportVim();
+  }
+
+  /**
+   * Turn vim mode on or off for the live document. Documents parked in other
+   * tabs are reconfigured as they come back through `setState`.
+   */
+  setVim(enabled) {
+    if (this.vim === !!enabled) return;
+    this.vim = !!enabled;
+    this.view.dispatch({ effects: this.vimCompartment.reconfigure(vimExtension(this.vim)) });
+    this.#reportVim();
+  }
+
+  /** The same state, configured for the vim setting in force. */
+  #withVim(state) {
+    return state.update({
+      effects: this.vimCompartment.reconfigure(vimExtension(this.vim)),
+    }).state;
+  }
+
+  /** Keep whoever is showing the mode in step with the editor. */
+  #reportVim() {
+    if (!this.options.onVim) return;
+    if (this.vim) watchVim(this.view, this.options.onVim);
+    else this.options.onVim(null);
   }
 
   getValue() {

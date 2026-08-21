@@ -53,6 +53,7 @@
         <button id="status-width" class="sb-btn" type="button" aria-live="polite">Normal</button>
         <span class="sb-sep"></span>
         <span id="status-mode" aria-live="polite">Preview editing</span>
+        <span id="status-vim" class="sb-vim" aria-live="polite" hidden></span>
         <span class="sb-sep"></span>
         <span id="status-counts"></span>
         <span class="sb-grow"></span>
@@ -68,10 +69,12 @@
         </header>
         <nav class="dialog-nav">
           <button class="nav-btn is-active" type="button" data-section="appearance">Appearance</button>
+          <button class="nav-btn" type="button" data-section="editor">Editor</button>
           <button class="nav-btn" type="button" data-section="shortcuts">Shortcuts</button>
         </nav>
         <div class="dialog-body">
           <section id="pane-appearance" class="settings-pane"></section>
+          <section id="pane-editor" class="settings-pane" hidden></section>
           <section id="pane-shortcuts" class="settings-pane" hidden></section>
         </div>
       </div>
