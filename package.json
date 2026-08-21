@@ -15,7 +15,7 @@
     "icon": "node scripts/make-icon.cjs",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:mac:local": "npm run build && cross-env APPLE_ID= APPLE_APP_SPECIFIC_PASSWORD= APPLE_TEAM_ID= APPLE_API_KEY= APPLE_KEYCHAIN_PROFILE= electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:win": "npm run build && electron-builder --win -c.extraMetadata.description=jmd"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
