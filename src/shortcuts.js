@@ -96,6 +96,7 @@ export const ACTION_GROUPS = [
       { id: 'layout.preview', label: 'Preview only', defaults: [`${VIEW_MOD}+3`] },
       { id: 'view.wide', label: 'Wide width', defaults: [`${VIEW_MOD}+W`] },
       { id: 'view.wysiwyg', label: 'Edit in preview', defaults: [`${MOD}+E`] },
+      { id: 'editor.vim', label: 'Vim mode', defaults: [`${VIEW_MOD}+V`] },
       { id: 'find.preview', label: 'Find in preview', defaults: [`${MOD}+Shift+F`] },
     ],
   },

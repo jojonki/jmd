@@ -1293,6 +1293,166 @@ module.exports = async function run(win, { app }) {
       toggledBack.wide === false && toggledBack.status === 'Normal' &&
       toggledBack.preview === normalWidth.preview, JSON.stringify(toggledBack));
 
+    // ---------------------------------------------------------------- vim
+    /** Real keydowns on the editor content, which is where vim reads them. */
+    const vimKeys = (...keys) => js(`(() => {
+      const content = document.querySelector('.cm-content');
+      for (const key of ${JSON.stringify(keys)}) {
+        content.dispatchEvent(new KeyboardEvent('keydown',
+          { key, bubbles: true, cancelable: true }));
+      }
+    })()`);
+    const vimState = () => js(`(() => {
+      const badge = document.getElementById('status-vim');
+      return {
+        on: window.__jmd.settings.vim,
+        editorVim: window.__jmd.editor.vim,
+        hidden: badge.hidden,
+        badge: badge.textContent,
+        mode: badge.dataset.mode,
+        wysiwyg: window.__jmd.previewEditor.enabled,
+        doc: window.__jmd.editor.getValue(),
+        panel: !!document.querySelector('.cm-vim-panel'),
+        // The vim engine hangs off the view while the extension is loaded.
+        live: !!window.__jmd.editor.view.cm,
+      };
+    })()`);
+
+    check('vim mode is off until it is asked for', (await vimState()).on === false);
+
+    await press('Cmd+Ctrl+V');
+    await wait(250);
+    const vimOn = await vimState();
+    check('the vim shortcut turns modal editing on and says which mode it is in',
+      vimOn.on === true && vimOn.editorVim === true && vimOn.hidden === false &&
+      vimOn.badge === 'NORMAL' && vimOn.mode === 'normal' && vimOn.wysiwyg === false,
+      JSON.stringify(vimOn));
+
+    // Every other tab holds a document configured before the setting changed;
+    // each one is reconciled on its way back into the view.
+    const switched = await js(`(() => {
+      const j = window.__jmd;
+      const from = j.activeTab.id;
+      j.activateTab(j.tabs.find((tab) => tab.id !== from));
+      return j.activeTab.id !== from;
+    })()`);
+    await wait(200);
+    const parked = await vimState();
+    check('a tab parked before vim was on comes back with it',
+      switched === true && parked.live === true && parked.badge === 'NORMAL',
+      JSON.stringify(parked));
+
+    await js(`window.__jmd.loadDocument(null, 'alpha\\nbravo\\ncharlie\\n');
+              window.__jmd.editor.goToLine(0);
+              window.__jmd.editor.focus();`);
+    await wait(200);
+    await vimKeys('d', 'd');
+    await wait(150);
+    const deleted = await vimState();
+    check('an operator and a motion compose into a command',
+      deleted.doc === 'bravo\ncharlie\n', JSON.stringify(deleted.doc));
+
+    await vimKeys('u');
+    await wait(150);
+    check('vim undo goes through the document history',
+      (await vimState()).doc === 'alpha\nbravo\ncharlie\n');
+
+    // A half-typed command is shown the way vim's own `showcmd` does.
+    await vimKeys('2');
+    await wait(120);
+    const pending = await vimState();
+    check('a command in progress is reported beside the mode',
+      pending.badge === 'NORMAL 2', JSON.stringify(pending));
+
+    await vimKeys('Escape', 'v');
+    await wait(150);
+    const visual = await vimState();
+    check('visual mode is entered and shown',
+      visual.mode === 'visual' && visual.badge === 'VISUAL', JSON.stringify(visual));
+
+    await vimKeys('Escape', ':');
+    await wait(200);
+    const exLine = await vimState();
+    check('the ex line opens on `:`', exLine.panel === true, JSON.stringify(exLine));
+    await shot(win, '11-vim-normal');
+    await vimKeys('Escape');
+    await wait(150);
+
+    // `:w` has to reach the app's own save, not vim's idea of a file.
+    const exPath = path.join(OUT, 'imgtest', 'ex-written.md');
+    if (fs.existsSync(exPath)) fs.unlinkSync(exPath);
+    await js(`(() => {
+      window.__jmd.loadDocument(${JSON.stringify(exPath)}, 'written by ex\\n');
+      window.__jmd.editor.focus();
+    })()`);
+    await wait(200);
+    await vimKeys(':');
+    await wait(200);
+    await js(`(() => {
+      const input = document.querySelector('.cm-vim-panel input');
+      input.value = 'w';
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'keyCode', { get: () => 13 });
+      input.dispatchEvent(event);
+    })()`);
+    await wait(600);
+    const exWritten = fs.existsSync(exPath) ? fs.readFileSync(exPath, 'utf8') : '';
+    check('`:w` saves the document the tab is holding',
+      exWritten === 'written by ex\n', JSON.stringify(exWritten));
+
+    // Real keys this time: insert mode is the half of vim that has to *stop*
+    // handling keys, and the markdown Enter has to survive underneath it.
+    grabFocus();
+    await js(`window.__jmd.loadDocument(null, '- one\\n');
+              window.__jmd.editor.goToLine(0);
+              window.__jmd.editor.focus();`);
+    await wait(250);
+    await nativeKey('A', ['shift']);
+    await wait(150);
+    const insert = await vimState();
+    check('an insert command hands typing back to the editor',
+      insert.mode === 'insert' && insert.badge === 'INSERT', JSON.stringify(insert));
+
+    await nativeKey('Enter');
+    await nativeText('two');
+    await wait(200);
+    const continued = await vimState();
+    check('the markdown list continuation still runs in insert mode',
+      continued.doc === '- one\n- two\n', JSON.stringify(continued.doc));
+
+    await nativeKey('Escape');
+    await wait(150);
+    check('Esc returns to normal mode', (await vimState()).mode === 'normal');
+
+    // Preview-only has no source pane at all, so the reading goes with it.
+    await js(`window.__jmd.setLayout('preview')`);
+    await wait(250);
+    const inPreview = await vimState();
+    check('the vim reading goes away with the source pane',
+      inPreview.on === true && inPreview.hidden === true, JSON.stringify(inPreview));
+
+    await js(`window.__jmd.setVim(false); window.__jmd.setVim(true);`);
+    await wait(350);
+    const reclaimed = await js(`(() => ({
+      layout: window.__jmd.settings.layout,
+      wysiwyg: window.__jmd.previewEditor.enabled,
+      hidden: document.getElementById('status-vim').hidden,
+      inEditor: !!document.activeElement.closest('#editor-pane'),
+    }))()`);
+    check('turning vim on from preview-only puts the source pane back in charge',
+      reclaimed.layout === 'split' && reclaimed.wysiwyg === false &&
+      reclaimed.hidden === false && reclaimed.inEditor === true,
+      JSON.stringify(reclaimed));
+
+    await js(`window.__jmd.setVim(false)`);
+    await wait(200);
+    await vimKeys('d', 'd');
+    await wait(150);
+    const vimOff = await vimState();
+    check('turning vim off puts the keys and the status bar back',
+      vimOff.on === false && vimOff.editorVim === false && vimOff.hidden === true &&
+      vimOff.doc === '- one\n- two\n', JSON.stringify(vimOff));
+
     // ------------------------------------------------------ settings panel
     await press('Cmd+,');
     await wait(300);
@@ -1319,6 +1479,30 @@ module.exports = async function run(win, { app }) {
     check('every action is listed with its keys', shortcutRows.rows >= 15 && shortcutRows.chips >= 2,
       JSON.stringify(shortcutRows));
     await shot(win, '07-settings-shortcuts');
+
+    await js(`document.querySelector('.nav-btn[data-section="editor"]').click()`);
+    await wait(200);
+    const editorPane = await js(`(() => ({
+      visible: !document.getElementById('pane-editor').hidden,
+      options: document.querySelectorAll('#vim-setting [data-vim]').length,
+      active: document.querySelector('#vim-setting .btn.is-active')?.dataset.vim,
+      keys: document.querySelectorAll('.vim-help kbd').length,
+    }))()`);
+    check('the editor pane carries the vim toggle and its key reference',
+      editorPane.visible && editorPane.options === 2 && editorPane.active === 'off' &&
+      editorPane.keys > 30, JSON.stringify(editorPane));
+    await shot(win, '12-settings-editor');
+
+    await js(`window.__jmd.settingsPanel.close(); window.__jmd.settingsPanel.open();`);
+    await wait(200);
+    const reopened = await js(`(() => ({
+      section: window.__jmd.settings.settingsSection,
+      visible: !document.getElementById('pane-editor').hidden,
+      stored: JSON.parse(localStorage.getItem('jmd.settings') ?? '{}').settingsSection,
+    }))()`);
+    check('the settings panel reopens on the section last used',
+      reopened.section === 'editor' && reopened.visible && reopened.stored === 'editor',
+      JSON.stringify(reopened));
 
     await js(`document.querySelector('.nav-btn[data-section="appearance"]').click();
               window.__jmd.setAccent('#bf3989');`);

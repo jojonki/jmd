@@ -199,6 +199,7 @@ function buildMenu() {
         { type: 'separator' },
         actionItem('Wide Width', 'view.wide'),
         actionItem('Edit In Preview', 'view.wysiwyg'),
+        actionItem('Vim Mode', 'editor.vim'),
         { type: 'separator' },
         {
           label: 'Theme',

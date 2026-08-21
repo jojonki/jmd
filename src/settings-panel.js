@@ -1,5 +1,6 @@
 /**
- * The settings dialog: skin (theme + accent colour) and keyboard shortcuts.
+ * The settings dialog: skin (theme + accent colour), editor behaviour and
+ * keyboard shortcuts.
  *
  * The panel never touches storage itself — it calls back into the app, which
  * owns the settings object and persists it.
@@ -24,10 +25,13 @@ export function createSettingsPanel({
   onLayout,
   onWide,
   onWidths,
+  onVim,
   onShortcuts,
+  onSection,
 }) {
   const overlay = $('settings');
   const appearance = $('pane-appearance');
+  const editorPane = $('pane-editor');
   const shortcutsPane = $('pane-shortcuts');
   let recording = null;
 
@@ -187,6 +191,80 @@ export function createSettingsPanel({
     return /^#[0-9a-f]{6}$/i.test(value) ? value : '#0969da';
   }
 
+  // ----------------------------------------------------------------- editor
+
+  /**
+   * What vim mode actually gives you, so the toggle is not a leap of faith.
+   * Deliberately the common ground rather than an exhaustive list.
+   */
+  const VIM_KEYS = [
+    ['Modes', 'i a I A o O', 'v V Ctrl-v', 'R', 'Esc'],
+    ['Motions', 'h j k l', 'w b e ge', '0 ^ $', 'gg G 42G', '{ } ( )', 'f t F T ; ,', '% Ctrl-d Ctrl-u'],
+    ['Edits', 'x s r J', 'd c y p P', 'dd cc yy', '>> << ==', 'u Ctrl-r', '.'],
+    ['Text objects', 'iw aw', 'i" a" i( a( i{ a{', 'ip ap it at'],
+    ['Search', '/ ? n N', '* #', ':%s/old/new/g', ':noh'],
+    ['Marks, registers, macros', 'ma \'a `a', '"ay "ap', 'qa @a @@'],
+    ['Counts and repeats', '3w d2w 5dd', '10j'],
+    ['This document', ':w', ':wq :x', ':q :q!', ':qa'],
+  ];
+
+  editorPane.innerHTML = `
+    <div class="field">
+      <div class="field-label">Vim mode</div>
+      <div class="field-hint">
+        Modal editing in the source pane${vimHint()}. Off by default, and the
+        source pane's alone: the preview is rich text with its own idea of what a
+        keystroke means, so turning vim on hands the keyboard back to the
+        Markdown, which is where these keys are worth having.
+      </div>
+      <div class="setting-seg" id="vim-setting" role="group" aria-label="Vim mode">
+        <button type="button" class="btn" data-vim="off">Off</button>
+        <button type="button" class="btn" data-vim="on">On</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-label">What is bound</div>
+      <div class="field-hint">
+        Operators, motions, counts and registers compose the way they do in vim,
+        so this is a reminder rather than the whole set.
+      </div>
+      <div class="vim-help">${VIM_KEYS.map(vimHelpRow).join('')}</div>
+    </div>`;
+
+  /** The current binding for the vim toggle, mentioned in the hint. */
+  function vimHint() {
+    const accel = shortcuts.primary('editor.vim');
+    return accel ? `, on and off with <b>${formatAccel(accel)}</b>` : '';
+  }
+
+  function vimHelpRow([label, ...groups]) {
+    const keys = groups
+      .map((group) => `<span class="vim-keys">${group
+        .split(' ')
+        .map((key) => `<kbd>${key.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</kbd>`)
+        .join('')}</span>`)
+      .join('');
+    return `
+      <div class="vim-help-row">
+        <span class="vim-help-name">${label}</span>
+        <span class="vim-help-keys">${keys}</span>
+      </div>`;
+  }
+
+  const vimSetting = $('vim-setting');
+  for (const button of vimSetting.children) {
+    button.addEventListener('click', () => {
+      onVim(button.dataset.vim === 'on');
+      syncEditor();
+    });
+  }
+
+  function syncEditor() {
+    for (const button of vimSetting.children) {
+      button.classList.toggle('is-active', (button.dataset.vim === 'on') === !!settings.vim);
+    }
+  }
+
   // -------------------------------------------------------------- shortcuts
 
   shortcutsPane.innerHTML = `
@@ -338,13 +416,15 @@ export function createSettingsPanel({
 
   // ------------------------------------------------------------------ shell
 
-  const sections = { appearance, shortcuts: shortcutsPane };
+  const sections = { appearance, editor: editorPane, shortcuts: shortcutsPane };
 
   function show(section) {
     for (const [name, pane] of Object.entries(sections)) pane.hidden = name !== section;
     for (const button of overlay.querySelectorAll('.nav-btn')) {
       button.classList.toggle('is-active', button.dataset.section === section);
     }
+    // The panel reopens where it was left, here and in the next session.
+    onSection?.(section);
   }
 
   for (const button of overlay.querySelectorAll('.nav-btn')) {
@@ -361,10 +441,11 @@ export function createSettingsPanel({
     }
   });
 
-  function open(section = 'appearance') {
+  function open(section = settings.settingsSection) {
     syncAppearance();
+    syncEditor();
     renderShortcuts();
-    show(section);
+    show(Object.hasOwn(sections, section ?? '') ? section : 'appearance');
     overlay.hidden = false;
     overlay.querySelector('.nav-btn.is-active')?.focus();
   }
@@ -382,5 +463,6 @@ export function createSettingsPanel({
       return !overlay.hidden;
     },
     syncAppearance,
+    syncEditor,
   };
 }

@@ -4,6 +4,7 @@ import './styles/app.css';
 import './styles/markdown.css';
 
 import { Editor } from './editor/editor.js';
+import { defineVimCommands } from './editor/vim.js';
 import { Preview } from './preview/preview.js';
 import { PreviewEditor } from './preview/wysiwyg.js';
 import { PreviewFind } from './preview/find.js';
@@ -46,6 +47,7 @@ const el = {
   statusWidth: $('status-width'),
   settingsBtn: $('btn-settings'),
   statusMode: $('status-mode'),
+  statusVim: $('status-vim'),
   statusCounts: $('status-counts'),
   statusMsg: $('status-msg'),
 };
@@ -63,7 +65,9 @@ const settings = {
   wide: false,
   widths: { ...DEFAULT_WIDTHS },
   wysiwyg: true,
+  vim: false,
   shortcuts: null,
+  settingsSection: 'appearance',
   ...readSettings(),
 };
 
@@ -121,6 +125,7 @@ const editor = new Editor(el.editorPane, {
     refreshCounts();
   },
   onScroll: () => syncScroll('editor'),
+  onVim: (status) => showVimStatus(status),
 });
 
 const previewEditor = new PreviewEditor({
@@ -609,6 +614,7 @@ function setLayout(layout) {
   if (layout === 'editor') previewFind.hide();
   if (layout === 'editor' && previewEditor.enabled) setWysiwyg(false);
   if (layout === 'preview' && !previewEditor.enabled) setWysiwyg(true);
+  refreshVimStatus();
   saveSettings();
   requestAnimationFrame(() => editor.view.requestMeasure());
 }
@@ -649,6 +655,50 @@ function setWysiwyg(enabled) {
   el.statusMode.textContent = enabled ? 'Preview editing' : 'Source';
   saveSettings();
   if (enabled) el.preview.focus();
+}
+
+/**
+ * Vim mode, which belongs to the source pane. Turning it on hands the caret
+ * back to the editor: keys typed in the preview are the preview's, so leaving
+ * the user there would make the setting look broken.
+ */
+function setVim(enabled, { announce = true } = {}) {
+  settings.vim = !!enabled;
+  editor.setVim(settings.vim);
+  saveSettings();
+  settingsPanel?.syncEditor();
+  refreshVimStatus();
+  if (!announce) return;
+  if (settings.vim) {
+    // Preview-only hides the source pane outright, and in-preview editing takes
+    // the keyboard away from it; vim needs it on screen and in charge.
+    if (settings.layout === 'preview') setLayout('split');
+    if (previewEditor.enabled) setWysiwyg(false);
+    editor.focus();
+  }
+  flash(`Vim mode ${settings.vim ? 'on' : 'off'}`);
+}
+
+/** Last reading from the editor, kept so the layout can hide and restore it. */
+let vimStatus = null;
+
+function showVimStatus(status) {
+  vimStatus = status;
+  refreshVimStatus();
+}
+
+/**
+ * The vim reading in the status bar. It describes the source pane, so it goes
+ * away with that pane rather than reporting a mode nothing is listening in.
+ */
+function refreshVimStatus() {
+  const showing = !!vimStatus && settings.layout !== 'preview';
+  el.statusVim.hidden = !showing;
+  if (!showing) return;
+  el.statusVim.textContent = vimStatus.pending
+    ? `${vimStatus.label} ${vimStatus.pending}`
+    : vimStatus.label;
+  el.statusVim.dataset.mode = vimStatus.kind;
 }
 
 // Divider drag
@@ -786,6 +836,26 @@ async function exportHtml() {
   if (result) flash(`Exported ${bridge?.basename?.(result.path) ?? ''}`);
 }
 
+/**
+ * The `:` line acts on the document in front of you: `:w` saves it, `:q` closes
+ * its tab (and, as the last one, the window), `!` skips the questions.
+ */
+defineVimCommands({
+  write: (name) => {
+    if (name) flash(`":w ${name}" is not supported — use Save As`);
+    else save();
+  },
+  writeQuit: async () => {
+    if (await save()) removeTab(active);
+  },
+  quit: (force) => (force ? removeTab(active) : closeTab(active)),
+  quitAll: (force) => {
+    if (!force) return confirmThenClose();
+    closing = true;
+    bridge?.closeWindow();
+  },
+});
+
 // ----------------------------------------------------------------- settings UI
 
 const settingsPanel = createSettingsPanel({
@@ -796,10 +866,16 @@ const settingsPanel = createSettingsPanel({
   onLayout: (layout) => setLayout(layout),
   onWide: (wide) => setWide(wide),
   onWidths: (widths) => setWidths(widths),
+  onVim: (enabled) => setVim(enabled),
   onShortcuts: () => {
     settings.shortcuts = shortcuts.toJSON();
     saveSettings();
     publishShortcuts();
+  },
+  onSection: (section) => {
+    if (settings.settingsSection === section) return;
+    settings.settingsSection = section;
+    saveSettings();
   },
 });
 
@@ -824,6 +900,7 @@ const ACTIONS = {
   'layout.preview': () => setLayout('preview'),
   'view.wide': () => setWide(!settings.wide),
   'view.wysiwyg': () => setWysiwyg(!previewEditor.enabled),
+  'editor.vim': () => setVim(!settings.vim),
   'find.preview': () => findInPreview(),
   'file.reveal': () => revealActive(),
   'app.settings': () => settingsPanel.toggle(),
@@ -920,6 +997,7 @@ window.__jmd = {
   previewFind,
   openFind,
   setWysiwyg,
+  setVim,
   setLayout,
   setWide,
   setWidths,
@@ -957,6 +1035,8 @@ setSplit(settings.split);
 settings.widths = normalizeWidths(settings.widths);
 setWide(settings.wide);
 setLayout(['editor', 'split', 'preview'].includes(settings.layout) ? settings.layout : 'split');
+// The boot sequence below decides where the caret lands, so no announcement.
+setVim(settings.vim, { announce: false });
 publishShortcuts();
 
 (async () => {
