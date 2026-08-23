@@ -109,12 +109,18 @@ const baseTheme = EditorView.theme({
     overflowX: 'hidden',
   },
   '.cm-content': {
-    padding: 'var(--pane-pad-y) var(--pane-pad-x)',
+    padding: 'var(--pane-pad-y) 0',
     maxWidth: 'var(--measure)',
     margin: '0 auto',
     caretColor: 'var(--caret)',
   },
-  '.cm-line': { padding: '0' },
+  // The gutter-to-text gap belongs to the line, not to the content box around
+  // it: a multi-line selection is drawn from the content's left edge plus the
+  // *line's* padding, so padding the content instead would paint that gap for
+  // every line after the first — a band of colour where there is no text and
+  // not even a space character. Same width either way, since `.cm-content` is
+  // border-box and its max-width counts the padding.
+  '.cm-line': { padding: '0 var(--pane-pad-x)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--caret)', borderLeftWidth: '2px' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
