@@ -32,6 +32,28 @@ function credentialArgs() {
 }
 
 /**
+ * Submits the dmg for notarization, retrying a connection that drops.
+ *
+ * The dmg is well over 100 MB and `notarytool submit` uploads the whole thing
+ * before Apple looks at it, so a connection that stalls halfway costs the
+ * entire transfer (`HTTPClientError.connectTimeout`). Nothing is lost by asking
+ * again: a submission that did reach Apple keeps its own id and finishes on
+ * their side regardless, and the answer this hook needs comes from whichever
+ * attempt survives the upload.
+ */
+function submitForNotarization(dmg, credentials, attempts = 3) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      execFileSync('xcrun', ['notarytool', 'submit', dmg, ...credentials, '--wait'], { stdio: 'inherit' });
+      return;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      console.log(`  • notarization attempt failed, retrying  attempt=${attempt}/${attempts}`);
+    }
+  }
+}
+
+/**
  * Drops the dmg from `latest-mac.yml`.
  *
  * electron-builder records each artifact's sha512 and size in that file, but it
@@ -82,7 +104,7 @@ exports.default = async function notarizeDmg(context) {
     execFileSync('codesign', ['--sign', IDENTITY, '--timestamp', '--force', dmg], { stdio: 'inherit' });
 
     console.log(`  • notarizing dmg  file=${dmg}`);
-    execFileSync('xcrun', ['notarytool', 'submit', dmg, ...credentials, '--wait'], { stdio: 'inherit' });
+    submitForNotarization(dmg, credentials);
 
     execFileSync('xcrun', ['stapler', 'staple', dmg], { stdio: 'inherit' });
     console.log(`  • dmg notarization successful  file=${dmg}`);
