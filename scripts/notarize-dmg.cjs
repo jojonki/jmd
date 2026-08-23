@@ -8,6 +8,8 @@
  * the environment, which is what keeps `npm run dist:mac:local` fast.
  */
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const IDENTITY = process.env.CSC_NAME || 'Developer ID Application';
 
@@ -27,6 +29,40 @@ function credentialArgs() {
     return ['--key', APPLE_API_KEY, '--key-id', APPLE_API_KEY_ID, '--issuer', APPLE_API_ISSUER];
   }
   return null;
+}
+
+/**
+ * Drops the dmg from `latest-mac.yml`.
+ *
+ * electron-builder records each artifact's sha512 and size in that file, but it
+ * does so before this hook runs — and signing and stapling the dmg rewrites it,
+ * so both values describe a file that no longer exists. The auto-updater reads
+ * the yml and would reject the download.
+ *
+ * The entry is removed rather than corrected because nothing consumes it:
+ * Squirrel.Mac updates through the zip, which this hook never touches, and
+ * which stays the file `path:` points at. The dmg remains in the release for
+ * people installing by hand.
+ */
+function dropDmgFromUpdateInfo(dmgs, outDir) {
+  const yml = path.join(outDir, 'latest-mac.yml');
+  if (!fs.existsSync(yml)) return;
+
+  const names = new Set(dmgs.map(dmg => path.basename(dmg)));
+  const lines = fs.readFileSync(yml, 'utf8').split('\n');
+  const kept = [];
+  let dropping = false;
+
+  for (const line of lines) {
+    const entry = line.match(/^\s*-\s+url:\s*(.+?)\s*$/);
+    if (entry) dropping = names.has(entry[1]);
+    // The url line opens an entry; its sha512 and size are indented under it.
+    else if (dropping && !/^\s+\S/.test(line)) dropping = false;
+    if (!dropping) kept.push(line);
+  }
+
+  fs.writeFileSync(yml, kept.join('\n'));
+  console.log(`  • pruned stale dmg entries  file=${yml}`);
 }
 
 exports.default = async function notarizeDmg(context) {
@@ -51,6 +87,8 @@ exports.default = async function notarizeDmg(context) {
     execFileSync('xcrun', ['stapler', 'staple', dmg], { stdio: 'inherit' });
     console.log(`  • dmg notarization successful  file=${dmg}`);
   }
+
+  dropDmgFromUpdateInfo(dmgs, context.outDir || path.dirname(dmgs[0]));
 
   return [];
 };

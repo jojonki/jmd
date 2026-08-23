@@ -25,7 +25,7 @@ xcrun notarytool history --keychain-profile jmd-notary
 ## 1. バージョンを上げる
 
 `package.json` の `version` を更新する。
-成果物のファイル名はこの値から決まるので、以降の手順に出てくる `0.1.2` は読み替える。
+成果物のファイル名はこの値から決まるので、以降の手順に出てくる `0.2.0` は読み替える。
 
 リリースするコミットは push しておく。
 タグとバイナリの中身が食い違わないよう、作業を未コミットのまま残さない。
@@ -40,6 +40,7 @@ APPLE_KEYCHAIN_PROFILE=jmd-notary npm run dist:mac
 ```
 
 arm64 の dmg と zip が `release/` に出る（Apple Silicon 専用。Intel 版の x64 ビルドは廃止した）。
+自動更新が読む `latest-mac.yml` と blockmap も同じ場所に出る。
 
 公証は Apple のサーバとのやり取りを伴うため、成果物ごとに数分かかる。
 アプリ1本と dmg 1本で計2回の送信になる。
@@ -56,7 +57,7 @@ electron-builder が公証するのはアプリだけで、それを包んだ dm
 
 ```sh
 spctl -a -vvv -t install release/mac-arm64/jmd.app
-spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.2-arm64.dmg
+spctl -a -vvv -t open --context context:primary-signature release/jmd-0.2.0-arm64.dmg
 ```
 
 2つとも `accepted` と `source=Notarized Developer ID` が出れば配布できる。
@@ -69,15 +70,32 @@ spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.2-arm6
 まずドラフトで作り、内容を確認してから公開する。
 
 ```sh
-gh release create v0.1.2 --draft --target main \
-  --title "jmd v0.1.2" \
-  --notes-file docs/release-notes-v0.1.2.md \
-  release/jmd-0.1.2-arm64.dmg \
-  release/jmd-0.1.2-arm64.zip
+gh release create v0.2.0 --draft --target main \
+  --title "jmd v0.2.0" \
+  --notes-file docs/release-notes-v0.2.0.md \
+  release/jmd-0.2.0-arm64.dmg \
+  release/jmd-0.2.0-arm64.zip \
+  release/jmd-0.2.0-arm64.zip.blockmap \
+  release/latest-mac.yml
 ```
 
-zip を併せて上げているのは、将来 electron-updater による自動更新を入れるときに必要になるためである。
-今は使っていないので、外しても配布には影響しない。
+dmg 以外の3つはアプリ内の自動更新が読む。
+手で入れ替えてもらうだけなら dmg で足りるが、いま動いている v0.2.0 以降のアプリはこの3つを見て更新する。
+
+- **`latest-mac.yml`**：最新版の番号と zip のハッシュ。アプリが最初に取りにいく
+- **`.zip`**：更新の実体。Squirrel.Mac は dmg を扱えないので、更新に使われるのはこちらである
+- **`.zip.blockmap`**：変わったブロックだけを落とすための索引
+
+`latest-mac.yml` と zip のどちらかが欠けると、更新は見つからないか、見つかっても落とせない。
+blockmap だけが欠けた場合は更新できるが、差分転送が効かず毎回 100MB 超を落とすことになる。
+
+`latest-mac.yml` に dmg の項目は入っていない。
+electron-builder はハッシュとサイズを記録してから成果物を確定するが、
+そのあとで `scripts/notarize-dmg.cjs` が dmg に署名して公証を貼り付け、中身を書き換えてしまう。
+記録された値は実物と合わなくなるので、`scripts/notarize-dmg.cjs` が自分で項目を落としている。
+
+同じ理由で `.dmg.blockmap` も実物と合っていない。
+こちらも上げない。
 
 リリースノートには次を書く。
 
@@ -88,12 +106,31 @@ zip を併せて上げているのは、将来 electron-updater による自動�
 確認できたらブラウザか次のコマンドで公開する。
 
 ```sh
-gh release edit v0.1.2 --draft=false
+gh release edit v0.2.0 --draft=false
 ```
 
 ## 更新版を出すときにユーザーが行うこと
 
-新しい dmg をダウンロードし、`/Applications` のアプリを置き換えるだけでよい。
+v0.2.0 以降のアプリは自分で更新する。
+起動から数秒後に GitHub のリリースを見にいき、新しい版があれば知らせる。
+メニューの Check for Updates… からも同じ確認ができる。
+
+ダウンロードするかどうかは必ず利用者に尋ねる。
+100MB を超える転送を黙って始めるわけにはいかないからである。
+承諾されたあとはウィンドウのプログレスバーだけを出して背後で落とし、終わってから再起動を尋ねる。
+
+再起動を選ぶと、まず全ウィンドウを閉じにいく。
+Squirrel はアプリを終了させてバンドルごと差し替えるため、
+未保存のタブを抱えたまま渡すと、そのまま消える。
+ウィンドウを閉じる経路を通せば、いつもの保存確認が出る。
+そこで取り消された場合、更新は次に普通に終了したときへ持ち越される（`autoInstallOnAppQuit`）。
+
+v0.1.2 以前からは自動で上がれない。
+更新の仕組みを積んでいないので、一度だけ手で dmg を入れ替えてもらう必要がある。
+
+macOS では署名のないアプリに更新を上書きできない。
+`npm run dist:mac:local` で作ったビルドは、更新を確認した時点で署名のエラーになる。
+自動更新の動作を確かめるときは、公証まで通したビルドを使う。
 
 設定は `~/Library/Application Support/jmd` に置かれており、アプリ本体の外にある。
 アプリを差し替えても失われない。
@@ -112,10 +149,17 @@ macOS 版を先に公開してしまってかまわない。
 
 ```sh
 npm run dist:win
-gh release upload v0.1.2 "release/jmd Setup 0.1.2.exe"
+gh release upload v0.2.0 \
+  "release/jmd Setup 0.2.0.exe" \
+  "release/jmd Setup 0.2.0.exe.blockmap" \
+  release/latest.yml
 ```
 
 ファイル名は electron-builder の nsis 既定によるものなので、実際の出力を `ls release` で確認してから指定する。
+
+macOS 側が `latest-mac.yml` を読むのに対し、Windows 側は `latest.yml` を読む。
+名前が違うので同じリリースに同居でき、片方だけ上げてももう片方の更新は壊れない。
+nsis のインストーラは dmg と違って後から署名し直していないため、こちらは blockmap もハッシュも実物と合っている。
 
 `dist:win` に付いている `-c.extraMetadata.description=jmd` は消さないこと。
 electron-builder は exe のバージョン情報の `FileDescription` を `description || productName` の順で埋めるが、
@@ -128,3 +172,6 @@ Windows には Apple のような公証はないが、署名のない実行フ�
 ## 未確認の項目
 
 - Windows 版には署名を入れていない。
+- 自動更新が実際に走るところは、まだ通しで見ていない。
+  古い版から新しい版へ上がる経路は、v0.2.0 が公開され、その次の版が出てはじめて試せる。
+  次のリリースでは、公開後に v0.2.0 のアプリから更新できることを必ず確かめる。
