@@ -3,7 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const { pathToFileURL } = require('node:url');
-const { checkForUpdates, checkOnStartup } = require('./updater');
+const { checkForUpdates, checkOnStartup, cancelPendingInstall } = require('./updater');
 
 const isMac = process.platform === 'darwin';
 const devServer = process.env.JMD_DEV_SERVER;
@@ -417,7 +417,11 @@ ipcMain.handle('dialog:confirm-close', async (event, name) => {
     message: `Do you want to save the changes made to "${name}"?`,
     detail: "Your changes will be lost if you don't save them.",
   });
-  return ['save', 'discard', 'cancel'][response];
+  const choice = ['save', 'discard', 'cancel'][response];
+  // Cancelling here is also how a restart-to-update is called off: the windows
+  // it was closing stay open, so the pending install has to stand down.
+  if (choice === 'cancel') cancelPendingInstall();
+  return choice;
 });
 
 /**
