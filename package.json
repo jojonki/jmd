@@ -28,6 +28,7 @@
     "@lezer/highlight": "^1.2.1",
     "@replit/codemirror-vim": "^6.4.0",
     "dompurify": "^3.2.5",
+    "electron-updater": "^6.8.9",
     "highlight.js": "^11.11.1",
     "katex": "^0.16.22",
     "markdown-it": "^14.1.0",
@@ -53,6 +54,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jojonki",
+        "repo": "jmd"
+      }
+    ],
     "afterAllArtifactBuild": "scripts/notarize-dmg.cjs",
     "files": [
       "dist/**/*",
@@ -63,11 +71,15 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         }
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}",

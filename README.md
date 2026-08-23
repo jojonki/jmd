@@ -53,6 +53,12 @@ Built apps for macOS (Apple Silicon) and Windows are on the
 [releases page](https://github.com/jojonki/jmd/releases/latest). The macOS dmg
 is signed and notarized, so it opens without a Gatekeeper warning.
 
+From 0.2.0 on, jmd keeps itself current: it looks for a new release shortly
+after launch, and Check for Updates… asks on demand. Nothing is downloaded
+without saying so first, and the install waits for you to agree to a restart —
+or for the next time you quit. Coming from 0.1.2 or earlier means one last
+manual swap, since those builds have no updater to run.
+
 ## Running it
 
 ```sh
@@ -101,8 +107,15 @@ user's machine.
 
 ```sh
 spctl -a -vvv -t install release/mac-arm64/jmd.app
-spctl -a -vvv -t open --context context:primary-signature release/jmd-0.1.2-arm64.dmg
+spctl -a -vvv -t open --context context:primary-signature release/jmd-0.2.0-arm64.dmg
 ```
+
+Signing is also what makes the updater work at all: macOS refuses to install an update
+over an unsigned app, so a `dist:mac:local` build fails the check rather than updating.
+
+Re-signing the dmg invalidates the hash electron-builder had already written for it into
+`latest-mac.yml`, so the same hook drops that entry. Updates go through the zip, which is
+never touched after the fact.
 
 The whole path from bumping the version to publishing on GitHub Releases is written up in
 [docs/release.md](docs/release.md) (in Japanese).

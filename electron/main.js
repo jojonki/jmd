@@ -3,6 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const { pathToFileURL } = require('node:url');
+const { checkForUpdates, checkOnStartup } = require('./updater');
 
 const isMac = process.platform === 'darwin';
 const devServer = process.env.JMD_DEV_SERVER;
@@ -126,6 +127,12 @@ const LINKS = {
   sponsor: 'https://github.com/sponsors/jojonki',
 };
 
+/** Sits next to About: the app menu on macOS, the Help menu everywhere else. */
+const UPDATE_ITEM = {
+  label: 'Check for Updates…',
+  click: () => checkForUpdates({ interactive: true }),
+};
+
 function buildMenu() {
   const themes = [
     ['github', 'GitHub Light'],
@@ -143,6 +150,7 @@ function buildMenu() {
           label: app.name,
           submenu: [
             actionItem(`About ${app.name}`, 'app.about'),
+            UPDATE_ITEM,
             { type: 'separator' },
             actionItem('Settings…', 'app.settings'),
             { type: 'separator' },
@@ -231,7 +239,7 @@ function buildMenu() {
     {
       role: 'help',
       submenu: [
-        ...(isMac ? [] : [actionItem(`About ${app.name}`, 'app.about'), { type: 'separator' }]),
+        ...(isMac ? [] : [actionItem(`About ${app.name}`, 'app.about'), UPDATE_ITEM, { type: 'separator' }]),
         { label: 'jmd on GitHub', click: () => shell.openExternal(LINKS.repo) },
         { label: 'Sponsor jmd', click: () => shell.openExternal(LINKS.sponsor) },
       ],
@@ -535,6 +543,8 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  checkOnStartup();
 });
 
 app.on('window-all-closed', () => {
