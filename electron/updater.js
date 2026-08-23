@@ -25,6 +25,9 @@ let busy = false;
 /** Set once a downloaded update is staged, so we stop offering it again. */
 let staged = false;
 
+/** The user asked to restart, and the windows are being closed for it. */
+let installing = false;
+
 function getUpdater() {
   if (!updater) {
     updater = require('electron-updater').autoUpdater;
@@ -138,19 +141,30 @@ async function offerRestart() {
 /**
  * Squirrel replaces the bundle and relaunches, so the app has to be able to go
  * down cleanly first. Asking each window to close runs its unsaved-changes
- * prompt; only once they are all gone is it safe to hand over. If the user
- * cancels at one of those prompts we never get that far, and the staged update
- * installs on the next ordinary quit instead (`autoInstallOnAppQuit`).
+ * prompt; only once they are all gone is it safe to hand over.
  *
  * Prepended so it runs before the app's own window-all-closed handler, which
  * quits outright on Windows and Linux.
  */
 function restartAndInstall() {
+  installing = true;
   app.prependOnceListener('window-all-closed', () => {
+    if (!installing) return;
     setProgress(-1);
     getUpdater().quitAndInstall();
   });
   for (const win of BrowserWindow.getAllWindows()) win.close();
+}
+
+/**
+ * Called when someone answers Cancel to an unsaved-changes prompt, which is
+ * how a restart gets called off: the windows stay open, so the listener above
+ * must not fire the next time they all happen to be closed. The update is
+ * already on disk either way and goes in on the next ordinary quit
+ * (`autoInstallOnAppQuit`).
+ */
+function cancelPendingInstall() {
+  installing = false;
 }
 
 function setProgress(fraction) {
@@ -182,4 +196,4 @@ function checkOnStartup() {
   setTimeout(() => checkForUpdates({ interactive: false }), 8000).unref();
 }
 
-module.exports = { checkForUpdates, checkOnStartup };
+module.exports = { checkForUpdates, checkOnStartup, cancelPendingInstall };
