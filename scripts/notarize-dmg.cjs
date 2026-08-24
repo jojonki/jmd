@@ -8,9 +8,6 @@
  * the environment, which is what keeps `npm run dist:mac:local` fast.
  */
 const { execFileSync } = require('node:child_process');
-const fs = require('node:fs');
-const path = require('node:path');
-
 const IDENTITY = process.env.CSC_NAME || 'Developer ID Application';
 
 // Mirrors the credential lookup in electron-builder's macPackager.
@@ -53,40 +50,6 @@ function submitForNotarization(dmg, credentials, attempts = 3) {
   }
 }
 
-/**
- * Drops the dmg from `latest-mac.yml`.
- *
- * electron-builder records each artifact's sha512 and size in that file, but it
- * does so before this hook runs — and signing and stapling the dmg rewrites it,
- * so both values describe a file that no longer exists. The auto-updater reads
- * the yml and would reject the download.
- *
- * The entry is removed rather than corrected because nothing consumes it:
- * Squirrel.Mac updates through the zip, which this hook never touches, and
- * which stays the file `path:` points at. The dmg remains in the release for
- * people installing by hand.
- */
-function dropDmgFromUpdateInfo(dmgs, outDir) {
-  const yml = path.join(outDir, 'latest-mac.yml');
-  if (!fs.existsSync(yml)) return;
-
-  const names = new Set(dmgs.map(dmg => path.basename(dmg)));
-  const lines = fs.readFileSync(yml, 'utf8').split('\n');
-  const kept = [];
-  let dropping = false;
-
-  for (const line of lines) {
-    const entry = line.match(/^\s*-\s+url:\s*(.+?)\s*$/);
-    if (entry) dropping = names.has(entry[1]);
-    // The url line opens an entry; its sha512 and size are indented under it.
-    else if (dropping && !/^\s+\S/.test(line)) dropping = false;
-    if (!dropping) kept.push(line);
-  }
-
-  fs.writeFileSync(yml, kept.join('\n'));
-  console.log(`  • pruned stale dmg entries  file=${yml}`);
-}
-
 exports.default = async function notarizeDmg(context) {
   const dmgs = (context.artifactPaths || []).filter(file => file.endsWith('.dmg'));
   if (process.platform !== 'darwin' || dmgs.length === 0) {
@@ -110,7 +73,10 @@ exports.default = async function notarizeDmg(context) {
     console.log(`  • dmg notarization successful  file=${dmg}`);
   }
 
-  dropDmgFromUpdateInfo(dmgs, context.outDir || path.dirname(dmgs[0]));
+  // Re-signing invalidates the sha512 electron-builder recorded for the dmg,
+  // which it writes into latest-mac.yml after this hook has run. Correcting it
+  // from here is not possible; scripts/prune-dmg-update-info.cjs does it once
+  // electron-builder has finished.
 
   return [];
 };

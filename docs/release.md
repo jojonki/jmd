@@ -90,9 +90,14 @@ dmg 以外の3つはアプリ内の自動更新が読む。
 blockmap だけが欠けた場合は更新できるが、差分転送が効かず毎回 100MB 超を落とすことになる。
 
 `latest-mac.yml` に dmg の項目は入っていない。
-electron-builder はハッシュとサイズを記録してから成果物を確定するが、
-そのあとで `scripts/notarize-dmg.cjs` が dmg に署名して公証を貼り付け、中身を書き換えてしまう。
-記録された値は実物と合わなくなるので、`scripts/notarize-dmg.cjs` が自分で項目を落としている。
+electron-builder は成果物を作った時点でハッシュとサイズを控え、最後にまとめて書き出す。
+その途中で `scripts/notarize-dmg.cjs` が dmg に署名して公証を貼り付け、中身を書き換えてしまう。
+控えられた値は実物と合わなくなるので、`scripts/prune-dmg-update-info.cjs` が項目ごと落としている。
+
+このスクリプトが electron-builder のフックではなく後処理なのは、書き出しの順序による。
+`afterAllArtifactBuild` は `latest-mac.yml` が書かれる前に走るので、
+そこで直しても直後に上書きされる。
+`dist:mac` と `dist:mac:local` の両方に繋いであるため、普段は意識しなくてよい。
 
 同じ理由で `.dmg.blockmap` も実物と合っていない。
 こちらも上げない。
