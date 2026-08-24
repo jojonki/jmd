@@ -113,9 +113,10 @@ spctl -a -vvv -t open --context context:primary-signature release/jmd-0.2.0-arm6
 Signing is also what makes the updater work at all: macOS refuses to install an update
 over an unsigned app, so a `dist:mac:local` build fails the check rather than updating.
 
-Re-signing the dmg invalidates the hash electron-builder had already written for it into
-`latest-mac.yml`, so the same hook drops that entry. Updates go through the zip, which is
-never touched after the fact.
+Re-signing the dmg invalidates the hash electron-builder took of it for `latest-mac.yml`,
+which is written out after the hook has run — so `scripts/prune-dmg-update-info.cjs` drops
+that entry once the build is over. Updates go through the zip, which is never touched
+after the fact.
 
 The whole path from bumping the version to publishing on GitHub Releases is written up in
 [docs/release.md](docs/release.md) (in Japanese).

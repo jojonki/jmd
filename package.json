@@ -13,8 +13,8 @@
     "smoke": "cross-env JMD_SMOKE=test/smoke.cjs JMD_DEV_SERVER=http://localhost:5173 electron .",
     "smoke:dist": "npm run build && cross-env JMD_SMOKE=test/smoke.cjs electron .",
     "icon": "node scripts/make-icon.cjs",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:mac:local": "npm run build && cross-env APPLE_ID= APPLE_APP_SPECIFIC_PASSWORD= APPLE_TEAM_ID= APPLE_API_KEY= APPLE_KEYCHAIN_PROFILE= electron-builder --mac",
+    "dist:mac": "npm run build && electron-builder --mac && node scripts/prune-dmg-update-info.cjs",
+    "dist:mac:local": "npm run build && cross-env APPLE_ID= APPLE_APP_SPECIFIC_PASSWORD= APPLE_TEAM_ID= APPLE_API_KEY= APPLE_KEYCHAIN_PROFILE= electron-builder --mac && node scripts/prune-dmg-update-info.cjs",
     "dist:win": "npm run build && electron-builder --win -c.extraMetadata.description=jmd"
   },
   "dependencies": {
