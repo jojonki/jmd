@@ -1,6 +1,6 @@
 {
   "name": "jmd",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A simple, lightweight markdown editor with live preview",
   "main": "electron/main.js",
   "author": "jonki",
