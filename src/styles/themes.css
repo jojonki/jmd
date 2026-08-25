@@ -23,6 +23,12 @@
   --measure: var(--measure-normal);
   --pane-pad-x: 28px;
   --pane-pad-y: 24px;
+  /* The editor's left edge, in three parts: window to line number, line number
+     to text, and the gutter's own inner gap. Kept tight — the text is aligned
+     to its line numbers, so anything wider reads as a gap rather than a margin. */
+  --editor-gutter-pad: 12px;
+  --editor-gutter-gap: 8px;
+  --editor-text-gap: 8px;
   --radius: 5px;
 }
 
@@ -65,6 +71,7 @@
   --syn-emphasis: #1f2328;
   --syn-link: #0969da;
   --syn-code: #953800;
+  --syn-list: #352d50;
   --syn-marker: #8250df;
   --syn-keyword: #cf222e;
   --syn-string: #0a3069;
@@ -104,6 +111,7 @@
   --syn-emphasis: #33302b;
   --syn-link: #a4560f;
   --syn-code: #7d5a2e;
+  --syn-list: #4d412f;
   --syn-marker: #ab7f3e;
   --syn-keyword: #9c3a2f;
   --syn-string: #5c6f36;
@@ -142,6 +150,7 @@
   --syn-emphasis: #586e75;
   --syn-link: #268bd2;
   --syn-code: #cb4b16;
+  --syn-list: #6b6470;
   --syn-marker: #d33682;
   --syn-keyword: #859900;
   --syn-string: #2aa198;
@@ -180,6 +189,7 @@
   --syn-emphasis: #e5e9f0;
   --syn-link: #8fbcbb;
   --syn-code: #ebcb8b;
+  --syn-list: #dad5e1;
   --syn-marker: #b48ead;
   --syn-keyword: #81a1c1;
   --syn-string: #a3be8c;
@@ -218,6 +228,7 @@
   --syn-emphasis: #f1fa8c;
   --syn-link: #8be9fd;
   --syn-code: #50fa7b;
+  --syn-list: #f4e2ec;
   --syn-marker: #ff79c6;
   --syn-keyword: #ff79c6;
   --syn-string: #f1fa8c;
@@ -256,6 +267,7 @@
   --syn-emphasis: #ebdbb2;
   --syn-link: #83a598;
   --syn-code: #b8bb26;
+  --syn-list: #e6c8ad;
   --syn-marker: #d3869b;
   --syn-keyword: #fb4934;
   --syn-string: #b8bb26;
