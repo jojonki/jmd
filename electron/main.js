@@ -134,13 +134,20 @@ const UPDATE_ITEM = {
 };
 
 function buildMenu() {
+  // The same list, in the same order, as `THEMES` in src/themes.js.
   const themes = [
     ['github', 'GitHub Light'],
     ['paper', 'Paper'],
+    ['solarized-light', 'Solarized Light'],
+    ['catppuccin-latte', 'Catppuccin Latte'],
+    ['sakura', 'Sakura'],
     ['nord', 'Nord'],
     ['dracula', 'Dracula'],
-    ['solarized-light', 'Solarized Light'],
     ['gruvbox-dark', 'Gruvbox Dark'],
+    ['tokyo-night', 'Tokyo Night'],
+    ['rose-pine', 'Rosé Pine'],
+    ['midnight', 'Midnight'],
+    ['synthwave', 'Synthwave'],
   ];
 
   /** @type {Electron.MenuItemConstructorOptions[]} */
