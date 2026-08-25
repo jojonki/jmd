@@ -55,10 +55,15 @@ Built apps for macOS (Apple Silicon) and Windows are on the
 is signed and notarized, so it opens without a Gatekeeper warning.
 
 From 0.2.0 on, jmd keeps itself current: it looks for a new release shortly
-after launch, and Check for Updates… asks on demand. Nothing is downloaded
-without saying so first, and the install waits for you to agree to a restart —
-or for the next time you quit. Coming from 0.1.2 or earlier means one last
-manual swap, since those builds have no updater to run.
+after launch — at most once a day, so twenty launches cost one check — and
+Check for Updates… asks on demand. When there is one, the offer comes with
+three answers: **Download**, **Later**, which asks again another day, and
+**Skip This Version**, which drops that release for good. A skipped version is
+never raised by the automatic check again; the release after it still is, and
+Check for Updates… brings the skipped one back if you change your mind.
+Nothing is downloaded without saying so first, and the install waits for you to
+agree to a restart — or for the next time you quit. Coming from 0.1.2 or
+earlier means one last manual swap, since those builds have no updater to run.
 
 ## Running it
 

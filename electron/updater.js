@@ -4,17 +4,41 @@
  * newest release, compares it against this build, and — on macOS — hands the
  * zip to Squirrel.Mac, which swaps the bundle and relaunches.
  *
- * Two ways in: a quiet check shortly after launch, and the Check for Updates…
+ * Two ways in: a quiet check a while after launch, and the Check for Updates…
  * menu item. They share one code path; `interactive` decides whether a
- * non-event (already current, or no network) is worth a dialog.
+ * non-event (already current, or no network) is worth a dialog, and whether a
+ * version the user chose to skip is offered again.
+ *
+ * The automatic check is deliberately cheap at launch. Nothing here runs, is
+ * required or is read from disk while the first window is being built: the
+ * whole cost of starting jmd is one unref'd timer, and even when that fires,
+ * a check that is not due yet returns before electron-updater is loaded or a
+ * request goes out.
  *
  * macOS will only install an update over a signed app, so this does nothing
  * useful for a build made without the notarization credentials — the check
  * fails with a code-signature error rather than silently installing nothing.
  */
 const { app, BrowserWindow, dialog, shell } = require('electron');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 
 const RELEASES_URL = 'https://github.com/jojonki/jmd/releases';
+
+/**
+ * How long the automatic check waits before looking again. Someone who opens
+ * jmd twenty times a day is asked once; someone who opens it after a month
+ * away is asked on the launch they actually came back on.
+ */
+const AUTO_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
+
+/**
+ * How long after launch the automatic check runs. Late on purpose: at launch
+ * the window is still loading, and a dialog landing over a half-drawn editor
+ * reads as a crash. Waiting also means a run short enough to be a mistaken
+ * double-click never gets interrupted.
+ */
+const STARTUP_DELAY = 8000;
 
 /** Required lazily: an unpackaged run never needs it. */
 let updater = null;
@@ -27,6 +51,58 @@ let staged = false;
 
 /** The user asked to restart, and the windows are being closed for it. */
 let installing = false;
+
+// ------------------------------------------------------------------- state
+
+/**
+ * What the last check left behind: when it ran, and the one version the user
+ * asked not to be told about again. Small enough to keep in a file of its own
+ * rather than in the renderer's settings, which the main process cannot read.
+ * @type {{ lastCheckAt: number, skipped: string|null }|null}
+ */
+let state = null;
+
+/** Resolved on first use — `app.getPath` is not available before ready. */
+function stateFile() {
+  return path.join(app.getPath('userData'), 'update-state.json');
+}
+
+async function readState() {
+  if (state) return state;
+  let stored = null;
+  try {
+    stored = JSON.parse(await fs.readFile(stateFile(), 'utf8'));
+  } catch {
+    /* no state yet, or a file we cannot parse: start over from nothing */
+  }
+  state = {
+    lastCheckAt: Number(stored?.lastCheckAt) || 0,
+    skipped: typeof stored?.skipped === 'string' ? stored.skipped : null,
+  };
+  // A skip that names the version now running has done its job — most likely
+  // the update was installed by hand afterwards.
+  if (state.skipped === app.getVersion()) state.skipped = null;
+  return state;
+}
+
+async function writeState(patch) {
+  state = { ...(await readState()), ...patch };
+  try {
+    await fs.writeFile(stateFile(), JSON.stringify(state));
+  } catch {
+    /* an unwritable state file costs an extra check, and nothing more */
+  }
+}
+
+/**
+ * Whether the automatic check should go out. A `lastCheckAt` in the future is
+ * a clock that moved, not a check that ran: treat it as due rather than as a
+ * reason to stay quiet until it catches up.
+ */
+function isCheckDue({ lastCheckAt }, now = Date.now()) {
+  const elapsed = now - lastCheckAt;
+  return elapsed < 0 || elapsed >= AUTO_CHECK_INTERVAL;
+}
 
 function getUpdater() {
   if (!updater) {
@@ -54,7 +130,8 @@ function show(options) {
 /**
  * @param {object} [options]
  * @param {boolean} [options.interactive] true when the user asked, which is
- *   what makes "you are up to date" and errors worth reporting.
+ *   what makes "you are up to date" and errors worth reporting — and what
+ *   brings back a version they had skipped.
  */
 async function checkForUpdates({ interactive = false } = {}) {
   if (busy) return;
@@ -78,8 +155,13 @@ async function checkForUpdates({ interactive = false } = {}) {
   busy = true;
   try {
     const result = await getUpdater().checkForUpdates();
+    await writeState({ lastCheckAt: Date.now() });
     if (result?.isUpdateAvailable) {
-      await offerDownload(result.updateInfo.version);
+      const version = result.updateInfo.version;
+      // Skipping silences the automatic check for that one release; asking
+      // for a check by hand is asking about it again.
+      if (!interactive && version === (await readState()).skipped) return;
+      await offerDownload(version);
       return;
     }
     if (interactive) {
@@ -99,13 +181,20 @@ async function checkForUpdates({ interactive = false } = {}) {
 async function offerDownload(version) {
   const { response } = await show({
     type: 'info',
-    buttons: ['Download', 'Later'],
+    buttons: ['Download', 'Later', 'Skip This Version'],
     defaultId: 0,
     cancelId: 1,
     message: `${app.name} ${version} is available.`,
     detail: `You are running ${app.getVersion()}. The update downloads in the `
-      + 'background; you will be asked before it is installed.',
+      + 'background; you will be asked before it is installed.\n\n'
+      + `Later asks again on another day. Skip This Version drops ${version} `
+      + 'for good — the next release is still offered, and Check for Updates… '
+      + 'brings this one back.',
   });
+  if (response === 2) {
+    await writeState({ skipped: version });
+    return;
+  }
   if (response !== 0) return;
 
   // The window's progress bar is the only feedback during the download, so the
@@ -186,14 +275,17 @@ async function reportFailure(error) {
 }
 
 /**
- * The check that runs on its own. Deliberately late: at launch the window is
- * still loading, and a dialog landing over a half-drawn editor reads as a
- * crash. Waiting also means a run short enough to be a mistaken double-click
- * never gets interrupted.
+ * The check that runs on its own, once a day at most. Everything it needs —
+ * the state file, electron-updater, the network — is reached only from inside
+ * the timer, and only on the launch where a check is actually due, so an
+ * ordinary start pays for a timer and nothing else.
  */
 function checkOnStartup() {
   if (!app.isPackaged) return;
-  setTimeout(() => checkForUpdates({ interactive: false }), 8000).unref();
+  setTimeout(async () => {
+    if (!isCheckDue(await readState())) return;
+    await checkForUpdates({ interactive: false });
+  }, STARTUP_DELAY).unref();
 }
 
-module.exports = { checkForUpdates, checkOnStartup, cancelPendingInstall };
+module.exports = { checkForUpdates, checkOnStartup, cancelPendingInstall, isCheckDue };
