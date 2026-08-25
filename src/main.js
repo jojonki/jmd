@@ -49,6 +49,7 @@ const el = {
   statusMode: $('status-mode'),
   statusVim: $('status-vim'),
   statusCounts: $('status-counts'),
+  statusCursor: $('status-cursor'),
   statusMsg: $('status-msg'),
 };
 
@@ -125,6 +126,7 @@ const editor = new Editor(el.editorPane, {
     refreshCounts();
   },
   onScroll: () => syncScroll('editor'),
+  onCursor: (state) => refreshCursor(state),
   onVim: (status) => showVimStatus(status),
 });
 
@@ -570,6 +572,17 @@ function flash(message) {
 function refreshCounts() {
   const { words, chars, lines } = editor.stats();
   el.statusCounts.textContent = `${words} words · ${chars} chars · ${lines} lines`;
+}
+
+/**
+ * Caret position, refreshed far more often than the counts beside it — every
+ * arrow key moves it — so it deliberately does no work over the document.
+ * @param {import('@codemirror/state').EditorState} [state]
+ */
+function refreshCursor(state) {
+  const { line, column, selected } = editor.cursor(state);
+  const span = selected ? ` (${selected} selected)` : '';
+  el.statusCursor.textContent = `Ln ${line}, Col ${column}${span}`;
 }
 
 // --------------------------------------------------------------- scroll sync

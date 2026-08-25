@@ -43,8 +43,17 @@ const highlightStyle = HighlightStyle.define([
   { tag: t.url, color: 'var(--syn-link)', textDecoration: 'underline' },
   { tag: t.monospace, color: 'var(--syn-code)' },
   { tag: t.quote, color: 'var(--fg-muted)', fontStyle: 'italic' },
-  { tag: t.list, color: 'var(--syn-marker)' },
+  // `t.list` is not the bullet — the markdown grammar tags every descendant of
+  // a list with it, so this colours the item's prose. It stays a hair off the
+  // body colour: enough to see at a glance that a block parsed as a list, not
+  // enough to read as a different kind of text. The marker itself is what
+  // carries the signal, and it keeps the louder `--syn-marker` below.
+  { tag: t.list, color: 'var(--syn-list)' },
   { tag: t.processingInstruction, color: 'var(--syn-marker)' },
+  // A task box is markdown's only `atom`, and `atom` descends from `keyword` —
+  // left alone, `[x]` picks up the keyword red and shouts next to the bullet
+  // it belongs to. It is a list marker, so it is coloured as one.
+  { tag: t.atom, color: 'var(--syn-marker)' },
   { tag: t.contentSeparator, color: 'var(--syn-marker)' },
   // Fenced code contents
   { tag: t.keyword, color: 'var(--syn-keyword)' },
@@ -108,10 +117,14 @@ const baseTheme = EditorView.theme({
     padding: '0',
     overflowX: 'hidden',
   },
+  // Left-aligned, not centred in the pane. `--measure` still caps how long a
+  // line gets before it wraps, but the slack that a wide window leaves over is
+  // all given to the right — centring it would push the text away from its own
+  // line numbers, which is the one thing no code editor does.
   '.cm-content': {
     padding: 'var(--pane-pad-y) 0',
     maxWidth: 'var(--measure)',
-    margin: '0 auto',
+    margin: '0',
     caretColor: 'var(--caret)',
   },
   // The gutter-to-text gap belongs to the line, not to the content box around
@@ -120,7 +133,7 @@ const baseTheme = EditorView.theme({
   // every line after the first — a band of colour where there is no text and
   // not even a space character. Same width either way, since `.cm-content` is
   // border-box and its max-width counts the padding.
-  '.cm-line': { padding: '0 var(--pane-pad-x)' },
+  '.cm-line': { padding: '0 var(--pane-pad-x) 0 var(--editor-text-gap)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--caret)', borderLeftWidth: '2px' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
@@ -139,7 +152,7 @@ const baseTheme = EditorView.theme({
     backgroundColor: 'transparent',
     color: 'var(--fg-faint)',
     border: 'none',
-    paddingRight: '4px',
+    padding: '0 var(--editor-gutter-gap) 0 var(--editor-gutter-pad)',
   },
   '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--fg-muted)' },
   '.cm-selectionMatch': { backgroundColor: 'var(--match)' },
@@ -266,6 +279,9 @@ export class Editor {
     this.view.setState(this.#withVim(state));
     this.applyingRemoteEdit = false;
     this.#reportVim();
+    // A whole-state swap goes around the update listener, so the caret readout
+    // would otherwise keep showing the position in the tab we just left.
+    this.options.onCursor?.(this.view.state);
   }
 
   /**
@@ -399,6 +415,20 @@ export class Editor {
       selection: { anchor: target.from },
       scrollIntoView: true,
     });
+  }
+
+  /**
+   * Caret position for the status bar, 1-based the way editors report it, plus
+   * how much text is selected (0 when the caret is a bare cursor). Counted in
+   * characters, so a tab is one column rather than a tab stop.
+   * @param {EditorState} [state] the state being reported on, when it is not
+   *   yet the one in the view — an update listener sees the new state first.
+   */
+  cursor(state = this.view.state) {
+    const range = state.selection.main;
+    const line = state.doc.lineAt(range.head);
+    const selected = state.selection.ranges.reduce((sum, r) => sum + (r.to - r.from), 0);
+    return { line: line.number, column: range.head - line.from + 1, selected };
   }
 
   stats() {

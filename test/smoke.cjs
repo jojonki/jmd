@@ -630,6 +630,52 @@ module.exports = async function run(win, { app }) {
     check('live preview updates', live.h1 === 'Title' && live.strong, JSON.stringify(live));
     check('inline math renders', live.inlineMath === 1);
 
+    // ------------------------------------------------------- caret readout
+    const caret = await js(`(async () => {
+      window.__jmd.setLayout('editor');
+      const view = window.__jmd.editor.view;
+      const read = () => document.getElementById('status-cursor').textContent;
+      view.dispatch({ selection: { anchor: view.state.doc.line(3).from + 6 } });
+      await new Promise(r => setTimeout(r, 80));
+      const point = read();
+      view.dispatch({ selection: { anchor: view.state.doc.line(3).from,
+                                   head: view.state.doc.line(3).from + 5 } });
+      await new Promise(r => setTimeout(r, 80));
+      const range = read();
+      return { point, range };
+    })()`);
+    check('the status bar reports the caret line and column',
+      caret.point === 'Ln 3, Col 7', caret.point);
+    check('a selection is reported beside the position',
+      caret.range === 'Ln 3, Col 6 (5 selected)', caret.range);
+
+    // A tab switch replaces the whole state, which goes around the update
+    // listener the readout otherwise rides on.
+    const caretAfterSwitch = await js(`(async () => {
+      const there = window.__jmd.newTab({ content: 'only line\\n' });
+      await new Promise(r => setTimeout(r, 120));
+      const fresh = document.getElementById('status-cursor').textContent;
+      await window.__jmd.closeTab(there);
+      await new Promise(r => setTimeout(r, 120));
+      return { fresh, back: document.getElementById('status-cursor').textContent };
+    })()`);
+    check('a new tab resets the caret readout instead of keeping the last one',
+      caretAfterSwitch.fresh === 'Ln 1, Col 1', JSON.stringify(caretAfterSwitch));
+
+    // The source text is aligned to its own line numbers. A wide window used to
+    // centre the content box, stranding the text away from the gutter.
+    const gutterGap = await js(`(() => {
+      const pane = document.getElementById('editor-pane');
+      const gutters = pane.querySelector('.cm-gutters').getBoundingClientRect();
+      const content = pane.querySelector('.cm-content').getBoundingClientRect();
+      return { slack: Math.round(pane.getBoundingClientRect().width - content.width),
+               gap: Math.round(content.left - gutters.right) };
+    })()`);
+    check('the source text sits against the gutter however wide the window is',
+      gutterGap.slack > 100 && gutterGap.gap === 0, JSON.stringify(gutterGap));
+    await js(`window.__jmd.setLayout('split')`);
+    await wait(200);
+
     // ------------------------------------------------- edit in the preview
     await js(`window.__jmd.setWysiwyg(true)`);
     await wait(300);

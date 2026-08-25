@@ -461,6 +461,13 @@ body.is-file-dragging #panes::after {
   color: var(--fg-muted);
 }
 
+/* Digits that change under the caret, so they are held to one width — a
+   proportional 1 would otherwise make the whole reading twitch as you type. */
+.sb-cursor {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 #status-msg {
   color: var(--fg-muted);
   transition: opacity 0.4s ease;
