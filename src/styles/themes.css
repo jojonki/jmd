@@ -275,3 +275,245 @@
   --syn-function: #8ec07c;
   --syn-type: #fabd2f;
 }
+
+/* -------------------------------------------------------- Catppuccin Latte */
+[data-theme='catppuccin-latte'] {
+  color-scheme: light;
+  --bg: #eff1f5;
+  --bg-elevated: #e6e9ef;
+  --bg-inset: #e6e9ef;
+  --fg: #4c4f69;
+  --fg-muted: #6c6f85;
+  --fg-faint: #9ca0b0;
+  --border: #ccd0da;
+  --border-strong: #bcc0cc;
+  --accent: #1e66f5;
+  --accent-fg: #ffffff;
+  --link: #1e66f5;
+  --selection: #bcc0cccc;
+  --selection-fg: #292c3c;
+  --active-line: #e6e9ef99;
+  --caret: #1e66f5;
+  --match: #f2e0b8;
+  --match-active: #e6c684;
+  --code-bg: #e6e9ef;
+  --code-fg: #4c4f69;
+  --quote-border: #ccd0da;
+  --table-stripe: #e9ecf2;
+  --mark-bg: #f2e0b8;
+  --syn-heading: #1e66f5;
+  --syn-strong: #4c4f69;
+  --syn-emphasis: #4c4f69;
+  --syn-link: #1e66f5;
+  --syn-code: #cc5a08;
+  --syn-list: #5c5f77;
+  --syn-marker: #8839ef;
+  --syn-keyword: #8839ef;
+  --syn-string: #40a02b;
+  --syn-number: #fe640b;
+  --syn-function: #1e66f5;
+  --syn-type: #b57614;
+}
+
+/* ------------------------------------------------------------------- Sakura */
+/* One of the two playful skins: pale petal pink, a rounded body face, and an
+   accent that stays legible on it. */
+[data-theme='sakura'] {
+  color-scheme: light;
+  --bg: #fff7f9;
+  --bg-elevated: #ffeef3;
+  --bg-inset: #ffeef3;
+  --fg: #4a3743;
+  --fg-muted: #8a6b78;
+  --fg-faint: #b28fa0;
+  --border: #f6d9e2;
+  --border-strong: #ecbcca;
+  --accent: #d1477f;
+  --accent-fg: #ffffff;
+  --link: #d1477f;
+  --selection: #fbd0e0cc;
+  --selection-fg: #3a2630;
+  --active-line: #fff0f599;
+  --caret: #d1477f;
+  --match: #ffe3ad;
+  --match-active: #ffc978;
+  --code-bg: #fdeef3;
+  --code-fg: #6b4a58;
+  --quote-border: #f2c9d8;
+  --table-stripe: #fff2f6;
+  --mark-bg: #ffdcb0;
+  --font-body: 'Hiragino Maru Gothic ProN', 'Zen Maru Gothic', 'Avenir Next',
+    var(--font-ui);
+  --syn-heading: #cc4c86;
+  --syn-strong: #4a3743;
+  --syn-emphasis: #6b4a58;
+  --syn-link: #d1477f;
+  --syn-code: #b45309;
+  --syn-list: #7a5c6a;
+  --syn-marker: #b06ab3;
+  --syn-keyword: #d1477f;
+  --syn-string: #4f8a5b;
+  --syn-number: #c2734f;
+  --syn-function: #7a6fd0;
+  --syn-type: #b07d3e;
+}
+
+/* -------------------------------------------------------------- Tokyo Night */
+[data-theme='tokyo-night'] {
+  color-scheme: dark;
+  --bg: #1a1b26;
+  --bg-elevated: #1f2335;
+  --bg-inset: #24283b;
+  --fg: #c0caf5;
+  --fg-muted: #9aa5ce;
+  --fg-faint: #565f89;
+  --border: #2f334d;
+  --border-strong: #3b4261;
+  --accent: #7aa2f7;
+  --accent-fg: #1a1b26;
+  --link: #7dcfff;
+  --selection: #364a82cc;
+  --selection-fg: #dfe6ff;
+  --active-line: #1f23358c;
+  --caret: #7aa2f7;
+  --match: #3d59a1;
+  --match-active: #5473cc;
+  --code-bg: #1f2335;
+  --code-fg: #c0caf5;
+  --quote-border: #3b4261;
+  --table-stripe: #1e1f2b;
+  --mark-bg: #5a4b2a;
+  --syn-heading: #7aa2f7;
+  --syn-strong: #ff9e64;
+  --syn-emphasis: #c0caf5;
+  --syn-link: #7dcfff;
+  --syn-code: #9ece6a;
+  --syn-list: #d5daf0;
+  --syn-marker: #bb9af7;
+  --syn-keyword: #bb9af7;
+  --syn-string: #9ece6a;
+  --syn-number: #ff9e64;
+  --syn-function: #7aa2f7;
+  --syn-type: #2ac3de;
+}
+
+/* ---------------------------------------------------------------- Rosé Pine */
+[data-theme='rose-pine'] {
+  color-scheme: dark;
+  --bg: #191724;
+  --bg-elevated: #1f1d2e;
+  --bg-inset: #26233a;
+  --fg: #e0def4;
+  --fg-muted: #908caa;
+  --fg-faint: #6e6a86;
+  --border: #26233a;
+  --border-strong: #403d52;
+  --accent: #c4a7e7;
+  --accent-fg: #191724;
+  --link: #9ccfd8;
+  --selection: #403d52cc;
+  --selection-fg: #f0eeff;
+  --active-line: #21202e8c;
+  --caret: #ebbcba;
+  --match: #403d52;
+  --match-active: #6a5f86;
+  --code-bg: #1f1d2e;
+  --code-fg: #e0def4;
+  --quote-border: #524f67;
+  --table-stripe: #1d1b29;
+  --mark-bg: #5a4a33;
+  --syn-heading: #c4a7e7;
+  --syn-strong: #f6c177;
+  --syn-emphasis: #ebbcba;
+  --syn-link: #9ccfd8;
+  --syn-code: #ebbcba;
+  --syn-list: #ded9f2;
+  --syn-marker: #eb6f92;
+  --syn-keyword: #eb6f92;
+  --syn-string: #f6c177;
+  --syn-number: #ebbcba;
+  --syn-function: #9ccfd8;
+  --syn-type: #c4a7e7;
+}
+
+/* ----------------------------------------------------------------- Midnight */
+/* Near-black, for an OLED display or a dark room: the chrome recedes and only
+   the text carries any brightness. */
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --bg: #0b0d10;
+  --bg-elevated: #14171c;
+  --bg-inset: #14171c;
+  --fg: #e6e9ef;
+  --fg-muted: #9aa3b2;
+  --fg-faint: #6b7280;
+  --border: #1e222a;
+  --border-strong: #2c313b;
+  --accent: #4cc2ff;
+  --accent-fg: #0b0d10;
+  --link: #4cc2ff;
+  --selection: #23405acc;
+  --selection-fg: #f2f6ff;
+  --active-line: #12151a8c;
+  --caret: #4cc2ff;
+  --match: #2b3a4a;
+  --match-active: #3f6285;
+  --code-bg: #14171c;
+  --code-fg: #e6e9ef;
+  --quote-border: #2c313b;
+  --table-stripe: #101317;
+  --mark-bg: #4a421f;
+  --syn-heading: #4cc2ff;
+  --syn-strong: #ffffff;
+  --syn-emphasis: #e6e9ef;
+  --syn-link: #4cc2ff;
+  --syn-code: #7ee787;
+  --syn-list: #d4dae6;
+  --syn-marker: #a371f7;
+  --syn-keyword: #ff7b72;
+  --syn-string: #a5d6ff;
+  --syn-number: #79c0ff;
+  --syn-function: #d2a8ff;
+  --syn-type: #ffa657;
+}
+
+/* ---------------------------------------------------------------- Synthwave */
+/* The other playful skin: neon on deep indigo, the way a 1984 sunset never
+   actually looked. */
+[data-theme='synthwave'] {
+  color-scheme: dark;
+  --bg: #241b2f;
+  --bg-elevated: #2a2139;
+  --bg-inset: #302547;
+  --fg: #f9f7ff;
+  --fg-muted: #a599c8;
+  --fg-faint: #7a6ca3;
+  --border: #3b3053;
+  --border-strong: #4f4070;
+  --accent: #ff7edb;
+  --accent-fg: #241b2f;
+  --link: #36f9f6;
+  --selection: #4f3d7acc;
+  --selection-fg: #ffffff;
+  --active-line: #2f2445a6;
+  --caret: #ff7edb;
+  --match: #4a3a6e;
+  --match-active: #6c4fa5;
+  --code-bg: #2a2139;
+  --code-fg: #f9f7ff;
+  --quote-border: #7a5cae;
+  --table-stripe: #271e36;
+  --mark-bg: #59306e;
+  --syn-heading: #36f9f6;
+  --syn-strong: #fede5d;
+  --syn-emphasis: #ff7edb;
+  --syn-link: #36f9f6;
+  --syn-code: #72f1b8;
+  --syn-list: #f2e9ff;
+  --syn-marker: #ff7edb;
+  --syn-keyword: #fe4450;
+  --syn-string: #ff8b39;
+  --syn-number: #f97e72;
+  --syn-function: #fede5d;
+  --syn-type: #72f1b8;
+}

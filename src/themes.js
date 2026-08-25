@@ -2,9 +2,15 @@ export const THEMES = [
   { id: 'github', label: 'GitHub Light' },
   { id: 'paper', label: 'Paper' },
   { id: 'solarized-light', label: 'Solarized Light' },
+  { id: 'catppuccin-latte', label: 'Catppuccin Latte' },
+  { id: 'sakura', label: 'Sakura' },
   { id: 'nord', label: 'Nord' },
   { id: 'dracula', label: 'Dracula' },
   { id: 'gruvbox-dark', label: 'Gruvbox Dark' },
+  { id: 'tokyo-night', label: 'Tokyo Night' },
+  { id: 'rose-pine', label: 'Rosé Pine' },
+  { id: 'midnight', label: 'Midnight' },
+  { id: 'synthwave', label: 'Synthwave' },
 ];
 
 export const DEFAULT_THEME = 'github';

@@ -11,6 +11,7 @@ import { PreviewFind } from './preview/find.js';
 import {
   DEFAULT_THEME,
   DEFAULT_WIDTHS,
+  THEMES,
   applyTheme,
   applyAccent,
   applyWidth,
@@ -1030,6 +1031,7 @@ window.__jmd = {
   exportHtml,
   buildExportHtml,
   settings,
+  themes: THEMES,
   shortcuts,
   settingsPanel,
   aboutPanel,

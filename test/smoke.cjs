@@ -580,7 +580,7 @@ module.exports = async function run(win, { app }) {
     // for the text as well as for the band behind it.
     const selectionTokens = await js(`(() => {
       const out = {};
-      for (const id of ['github', 'paper', 'solarized-light', 'nord', 'dracula', 'gruvbox-dark']) {
+      for (const { id } of window.__jmd.themes) {
         const probe = document.createElement('div');
         probe.dataset.theme = id;
         document.body.appendChild(probe);
@@ -596,6 +596,39 @@ module.exports = async function run(win, { app }) {
     check('every theme names both selection colours',
       Object.values(selectionTokens).every((t) => t.band && t.text),
       JSON.stringify(selectionTokens));
+
+    // A theme that misses a token silently inherits whichever one happened to
+    // be set last, so every skin has to write the whole vocabulary.
+    const tokenGaps = await js(`(() => {
+      const read = (id) => {
+        const probe = document.createElement('div');
+        probe.dataset.theme = id;
+        document.body.appendChild(probe);
+        const style = getComputedStyle(probe);
+        const out = {};
+        const rules = [...document.styleSheets].flatMap((sheet) => {
+          // A stylesheet the document is not allowed to read throws here; the
+          // app's own sheets are same-origin, so skipping is safe.
+          try { return [...sheet.cssRules]; } catch { return []; }
+        });
+        for (const rule of rules) {
+          if (rule.selectorText !== \`[data-theme='\${id}']\`) continue;
+          for (const name of rule.style) out[name] = style.getPropertyValue(name).trim();
+        }
+        probe.remove();
+        return out;
+      };
+      const vocabulary = Object.keys(read('github'));
+      const gaps = {};
+      for (const { id } of window.__jmd.themes) {
+        const own = read(id);
+        const missing = vocabulary.filter((name) => !(name in own) || !own[name]);
+        if (missing.length) gaps[id] = missing;
+      }
+      return gaps;
+    })()`);
+    check('every theme sets the whole token vocabulary',
+      Object.keys(tokenGaps).length === 0, JSON.stringify(tokenGaps));
 
     // CodeMirror's base theme has a more specific rule for the *focused*
     // selection, and it reaches for its light palette; the skin has to win.

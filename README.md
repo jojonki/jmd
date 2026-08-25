@@ -27,9 +27,10 @@ preview views. Built with Electron for macOS and Windows.
   file you have open.
 - **The usual syntax** plus tables, footnotes, definition lists, task lists,
   `==highlight==`, `~sub~`/`^sup^`, and syntax-highlighted code fences.
-- **Six colour templates**, covering the editor, the preview and the chrome
+- **Twelve colour templates**, covering the editor, the preview and the chrome
   from a single set of CSS variables — plus an accent colour of your own on top
-  of any of them.
+  of any of them. Five light, seven dark, two of them (Sakura and Synthwave)
+  more playful than the rest.
 - **Two column widths.** A normal measure and a wide one, toggled with ⌘⌃W or
   from the status bar; both are set in rem in Settings › Appearance.
 - **Vim mode** for the source pane (⌘⌃V), off unless you turn it on. Operators,
