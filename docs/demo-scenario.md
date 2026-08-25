@@ -23,6 +23,12 @@ The recording begins with these later edits removed:
 
 ## Recording
 
+`npm run demo` performs this scenario against the real app and writes
+`docs/jmd-demo.gif`; [`scripts/record-demo.cjs`](../scripts/record-demo.cjs) is
+where the timings below live. It needs ffmpeg on the PATH, and the machine left
+alone for the ten seconds it records — the typing and the clicks go to whichever
+window has focus.
+
 Target length: approximately 10 seconds. Keep the window fixed throughout the
 recording and use the Nord theme initially. Typing should feel brisk but remain
 readable; avoid long pauses between actions.
@@ -81,7 +87,8 @@ $$
 **Label:** none; let the Settings UI identify the themes
 
 1. Click the Settings button in the title bar.
-2. Keep **Appearance** selected and show the theme swatches.
+2. Keep **Appearance** selected and scroll the pane until the theme swatches
+   are in view.
 3. Click the swatches in this order, allowing roughly half a second for each
    change to register visually:
    - **Nord**

@@ -73,6 +73,7 @@ npm start          # build, then launch
 npm run dev        # vite dev server + electron, with hot reload
 npm run smoke      # drive the real app end to end (needs `npm run dev` running)
 npm run smoke:dist # the same checks, against the built dist
+npm run demo       # re-record docs/jmd-demo.gif from the real app (needs ffmpeg)
 ```
 
 Packaging:
@@ -253,6 +254,7 @@ src/
   preview/         rendering, DOM patching, the in-preview editor, and find
   styles/          app chrome, preview typography, colour templates
 test/smoke.cjs     end-to-end checks against a real Electron window
+scripts/record-demo.cjs  drives the app to re-record the README's demo GIF
 ```
 
 The renderer is sandboxed with context isolation; rendered HTML goes through
