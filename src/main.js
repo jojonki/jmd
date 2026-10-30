@@ -141,7 +141,10 @@ const previewEditor = new PreviewEditor({
   },
   onAtomicClick: (line) => {
     // Read-only blocks (math, code, raw HTML) are edited in the source pane.
-    setLayout('split');
+    // Only follow the click when that pane is already on screen: preview-only
+    // stays put, and a drag that selected text (to copy it) is left alone.
+    if (settings.layout !== 'split') return;
+    if (!document.getSelection()?.isCollapsed) return;
     editor.goToLine(line);
     editor.focus();
   },
