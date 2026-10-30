@@ -717,6 +717,20 @@ module.exports = async function run(win, { app }) {
     const atomic = await js(`document.querySelectorAll('#preview [contenteditable="false"]').length`);
     check('math/code blocks stay atomic', atomic >= 1, String(atomic));
 
+    // Clicking a read-only block in preview-only must not pull the source back.
+    await js(`window.__jmd.setLayout('preview')`);
+    await wait(200);
+    const stayed = await js(`(() => {
+      getSelection().removeAllRanges();
+      document.querySelector('#preview [contenteditable="false"]')
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      return document.getElementById('panes').className;
+    })()`);
+    check('clicking a code block in preview-only keeps the layout',
+      stayed === 'layout-preview', stayed);
+    await js(`window.__jmd.setLayout('split')`);
+    await wait(200);
+
     // Type into the first paragraph, then let the commit fire.
     await js(`(() => {
       const p = document.querySelector('#preview p');
