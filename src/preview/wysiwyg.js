@@ -138,6 +138,84 @@ export function isBlankBlock(el) {
 /** Blocks whose text is prose the editing surface may have padded. */
 const TEXT_BLOCK = /^(P|DIV|H[1-6]|BLOCKQUOTE|UL|OL|DL)$/;
 
+const isList = (node) => node?.nodeType === Node.ELEMENT_NODE && /^(UL|OL)$/.test(node.tagName);
+
+/** A <br> or a run of whitespace: what the browser pads a list item's text with. */
+const isListItemPadding = (node) =>
+  node.nodeName === 'BR' || (node.nodeType === Node.TEXT_NODE && !node.data.replace(/[\u200b\s]/g, ''));
+
+/** Drop the padding either side of an item's nested lists, and at its end. */
+function trimListItem(item) {
+  const trimBefore = (edge) => {
+    let node = edge ? edge.previousSibling : item.lastChild;
+    while (node && isListItemPadding(node)) {
+      const previous = node.previousSibling;
+      node.remove();
+      node = previous;
+    }
+  };
+  trimBefore(null);
+  for (const child of Array.from(item.children)) if (isList(child)) trimBefore(child);
+}
+
+/**
+ * Chromium's list editing leaves structures Markdown has no spelling for, and
+ * each one reaches the source as a blank line that turns the list loose. Put
+ * them back into the only shape a Markdown list can have: UL/OL holding LIs,
+ * with a nested list as the last thing in the item that owns it.
+ */
+function normalizeLists(root) {
+  // Outdenting leaves the item inside its old parent item, with whatever came
+  // after it. All of that belongs after the parent, in the parent's list.
+  for (let item = root.querySelector('li > li'); item; item = root.querySelector('li > li')) {
+    const parent = item.parentElement;
+    const moved = [];
+    for (let node = item; node; node = node.nextSibling) moved.push(node);
+    parent.after(...moved);
+  }
+
+  // A list directly inside a list nests under the item before it. With no such
+  // item there is nothing to nest under, so its items stay at the outer level.
+  const stray = 'ul > ul, ul > ol, ol > ul, ol > ol';
+  for (let list = root.querySelector(stray); list; list = root.querySelector(stray)) {
+    const owner = list.previousElementSibling;
+    if (owner?.tagName === 'LI') owner.appendChild(list);
+    else list.replaceWith(...list.childNodes);
+  }
+
+  // An empty item is an editing affordance with no Markdown counterpart. Lists
+  // hanging off one pass to the item before it, or else take its place.
+  for (const item of Array.from(root.querySelectorAll('li')).reverse()) {
+    const own = Array.from(item.childNodes).filter((node) => !isList(node));
+    const holder = document.createElement('div');
+    holder.append(...own.map((node) => node.cloneNode(true)));
+    if (!isBlankBlock(holder)) continue;
+    const owner = item.previousElementSibling;
+    const nested = Array.from(item.children).filter(isList);
+    if (owner?.tagName === 'LI') owner.append(...nested);
+    else item.after(...nested.flatMap((list) => Array.from(list.childNodes)));
+    item.remove();
+  }
+
+  for (const item of root.querySelectorAll('li')) {
+    trimListItem(item);
+    // Two lists of one kind in an item read back as one list split by a blank.
+    for (const list of Array.from(item.children).filter(isList)) {
+      const next = list.nextElementSibling;
+      if (next?.tagName !== list.tagName) continue;
+      next.prepend(...list.childNodes);
+      list.remove();
+    }
+    trimListItem(item);
+  }
+
+  // Everything above can empty a list, and an empty list prints a blank line.
+  const lists = [root, ...root.querySelectorAll('ul, ol')].filter(isList);
+  for (const list of lists.reverse()) {
+    if (list !== root && !list.querySelector('li')) list.remove();
+  }
+}
+
 /**
  * Serialize a block for conversion, without the editing artefacts that have no
  * business in the source: the empty list item the user is still typing into, and
@@ -149,21 +227,7 @@ function prunedHtml(el) {
   if (!TEXT_BLOCK.test(el.tagName)) return el.outerHTML;
   const clone = el.cloneNode(true);
 
-  // Indenting an item makes Chromium put the new list beside its parent item
-  // rather than inside it. Markdown nesting is expressed by containment, so the
-  // stray list is moved into the item it was indented under.
-  for (const nested of clone.querySelectorAll('ul > ul, ul > ol, ol > ul, ol > ol')) {
-    if (nested.previousElementSibling?.tagName === 'LI') {
-      nested.previousElementSibling.appendChild(nested);
-    }
-  }
-
-  const lists = [clone, ...clone.querySelectorAll('ul, ol')].filter((node) => /^(UL|OL)$/.test(node.tagName));
-  for (const list of lists.reverse()) {
-    while (list.lastElementChild?.tagName === 'LI' && isBlankBlock(list.lastElementChild)) {
-      list.lastElementChild.remove();
-    }
-  }
+  normalizeLists(clone);
 
   const first = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT).nextNode();
   // Four of these would turn the block into an indented code block on the way
@@ -428,7 +492,11 @@ export class PreviewEditor {
   #indentListItem(outdent) {
     const anchor = window.getSelection()?.anchorNode;
     const el = anchor?.nodeType === Node.ELEMENT_NODE ? anchor : anchor?.parentElement;
-    if (!el?.closest?.('li') || !this.#topLevel(el)) return;
+    const item = el?.closest?.('li');
+    if (!item || !this.#topLevel(el)) return;
+    // The first item of a list has nothing above it to nest under. Markdown can't
+    // express that indent, so it would show here and vanish on the next render.
+    if (!outdent && window.getSelection().isCollapsed && !item.previousElementSibling) return;
     this.suspended = true;
     document.execCommand(outdent ? 'outdent' : 'indent', false);
     this.suspended = false;

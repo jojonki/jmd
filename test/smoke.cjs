@@ -256,8 +256,18 @@ module.exports = async function run(win, { app }) {
           continue;
         }
         if (step === 'Enter' || step === 'Tab' || step === 'Backspace') await nativeKey(step);
+        else if (step === 'ShiftTab') await nativeKey('Tab', ['shift']);
         else if (step === 'Undo') await nativeKey('Z', ['cmd']);
         else if (step === 'pause') await wait(600);
+        else if (step.startsWith('endOf:')) {
+          // The end of an element's own text, ahead of anything nested in it.
+          await js(`(() => {
+            const el = document.querySelector('#preview ' + ${JSON.stringify(step.slice(6))});
+            const text = document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode();
+            getSelection().collapse(text, text.data.trimEnd().length);
+          })()`);
+          await wait(40);
+        }
         else if (step.startsWith('insert:')) {
           await js(`document.execCommand('insertText', false, ${JSON.stringify(step.slice(7))})`);
           await wait(60);
@@ -365,6 +375,31 @@ module.exports = async function run(win, { app }) {
     pc = await previewCase({ source: '', steps: ['- one', 'Enter', 'Tab', 'nested'] });
     check('Tab nests a list item instead of moving focus out of the preview',
       pc.source === '- one\n  - nested' && pc.focused, JSON.stringify(pc));
+
+    // Chromium's list editing leaves shapes Markdown cannot spell. Each of these
+    // used to write a blank line into the source, turning the list loose — which
+    // only showed on the next re-render, long after the edit that caused it.
+    const nestedDoc = '- a\n  - b\n  - c\n- d';
+    for (const [name, source, steps, expected] of [
+      ['Tab twice nests one level', '', ['- a', 'Enter', 'Tab', 'Tab', 'b'], '- a\n  - b'],
+      ['Tab on the first item changes nothing', '- a\n- b', ['endOf:li', 'Tab'], '- a\n- b'],
+      ['Tab on the first nested item changes nothing', nestedDoc, ['endOf:li li', 'Tab'], nestedDoc],
+      ['Shift+Tab lifts the last nested item', nestedDoc,
+        ['endOf:li li:last-child', 'ShiftTab'], '- a\n  - b\n- c\n- d'],
+      ['Shift+Tab lifts the first nested item, keeping its sibling nested', nestedDoc,
+        ['endOf:li li', 'ShiftTab'], '- a\n- b\n  - c\n- d'],
+      ['Shift+Tab lifts an only nested item', '- a\n  - b\n- c',
+        ['endOf:li li', 'ShiftTab'], '- a\n- b\n- c'],
+      ['Enter after a parent item adds a sibling that takes the children', '- a\n  - b\n- c',
+        ['endOf:li', 'Enter', 'x'], '- a\n- x\n  - b\n- c'],
+      ['an empty item between items stays out of the source', '- a\n- b',
+        ['endOf:li', 'Enter'], '- a\n- b'],
+      ['an empty item above nested items stays out of the source', '- a\n  - b\n- c',
+        ['endOf:li', 'Enter'], '- a\n  - b\n- c'],
+    ]) {
+      pc = await previewCase({ source, steps });
+      check(`${name}, with no blank line`, pc.source === expected, JSON.stringify(pc));
+    }
 
     pc = await previewCase({ source: '', steps: ['1. one', 'Enter', 'two'] });
     check('an ordered list keeps numbering', pc.source === '1. one\n2. two', JSON.stringify(pc));
