@@ -1,4 +1,3 @@
-import 'katex/dist/katex.min.css';
 import './styles/themes.css';
 import './styles/app.css';
 import './styles/markdown.css';
@@ -19,6 +18,8 @@ import {
   normalizeWidths,
 } from './themes.js';
 import { exportDocument } from './export.js';
+import { upgradeRendered } from './markdown/renderer.js';
+import { loadAll, onLoaded } from './markdown/lazy.js';
 import { TabBar, TAB_MIME } from './tabs.js';
 import { Shortcuts, formatAccel } from './shortcuts.js';
 import { createSettingsPanel } from './settings-panel.js';
@@ -749,6 +750,7 @@ function refreshVimStatus() {
 
 function setTheme(id) {
   settings.theme = applyTheme(id);
+  bridge?.setBackground?.(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
   saveSettings();
   settingsPanel?.syncAppearance();
 }
@@ -848,6 +850,9 @@ function buildExportHtml() {
 }
 
 async function exportHtml() {
+  // An export is read without jmd, so it must not carry the plain-text stand-ins.
+  await loadAll();
+  upgradeRendered(el.preview);
   const html = buildExportHtml();
   const result = await bridge?.exportHtml({ path: active?.path, html });
   if (result) flash(`Exported ${bridge?.basename?.(result.path) ?? ''}`);
@@ -1047,6 +1052,12 @@ window.__jmd = {
 
 // ----------------------------------------------------------------- boot
 
+// Math and code highlighting load after the first paint (see markdown/lazy.js).
+// Whatever was rendered without them is brought up to date where it stands.
+onLoaded(() => {
+  if (upgradeRendered(el.preview)) previewFind.reindex();
+});
+
 setTheme(settings.theme);
 setAccent(settings.accent);
 setSplit(settings.split);
@@ -1078,4 +1089,7 @@ publishShortcuts();
     // empty-document caret once the first frame has been presented.
     requestAnimationFrame(() => previewEditor.focus());
   } else editor.focus();
+  // Fetch them anyway once the window is up and idle, so the first fence or
+  // formula typed is already highlighted.
+  requestAnimationFrame(() => requestIdleCallback(() => loadAll(), { timeout: 2000 }));
 })();

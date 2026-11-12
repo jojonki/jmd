@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, screen, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
@@ -33,6 +33,37 @@ function registerFileProtocol() {
 const windows = new Set();
 
 /**
+ * The background of the theme in use, kept on disk so the next launch can show
+ * its window straight away in the right colour instead of waiting for the page
+ * to paint. The renderer reports it whenever the theme changes.
+ */
+const backgroundFile = () => path.join(app.getPath('userData'), 'window-background');
+const HEX = /^#[0-9a-f]{6}$/i;
+let themeBackground;
+
+function storedBackground() {
+  if (themeBackground === undefined) {
+    try {
+      const value = fsSync.readFileSync(backgroundFile(), 'utf8').trim();
+      themeBackground = HEX.test(value) ? value : null;
+    } catch {
+      themeBackground = null;
+    }
+  }
+  return themeBackground;
+}
+
+ipcMain.on('window:set-background', (event, color) => {
+  if (typeof color !== 'string' || !HEX.test(color)) return;
+  BrowserWindow.fromWebContents(event.sender)?.setBackgroundColor(color);
+  if (color === storedBackground()) return;
+  themeBackground = color;
+  fs.writeFile(backgroundFile(), color).catch(() => {
+    /* best effort: the next launch falls back to the system colour */
+  });
+});
+
+/**
  * When each window was last brought forward. There is no z-order to ask for,
  * and overlapping windows have to be told apart when a tab is dropped over
  * them; the one the user last worked in is the one that was on top.
@@ -40,7 +71,7 @@ const windows = new Set();
  */
 const raisedAt = new Map();
 
-function createWindow(filePath = null) {
+function createWindow(filePath = null, { show = true } = {}) {
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -49,7 +80,8 @@ function createWindow(filePath = null) {
     show: false,
     title: 'jmd',
     ...(devIcon ? { icon: devIcon } : {}),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#ffffff',
+    // Before any theme has been reported, the default theme's (GitHub Light).
+    backgroundColor: storedBackground() ?? '#ffffff',
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: isMac ? { x: 14, y: 14 } : undefined,
     webPreferences: {
@@ -67,7 +99,11 @@ function createWindow(filePath = null) {
     windows.delete(win);
     raisedAt.delete(win);
   });
-  win.once('ready-to-show', () => win.show());
+  // Shown before the page has painted: in the theme's own colour an empty frame
+  // for a moment reads as the app opening, and it appears a third sooner than
+  // waiting for ready-to-show. A caller that still has to place the window
+  // (see tab:detach) shows it itself, so it is never seen in the wrong spot.
+  if (show) win.show();
 
   // Pass the file to open (if any) through the query string so the renderer
   // can load it as soon as it boots.
@@ -454,9 +490,10 @@ ipcMain.handle('tab:detach', (event, { path: filePath, content, saved, x, y, lon
   // open an identical one; dropping it on another window is still a real move.
   if (lone) return false;
 
-  const win = createWindow();
+  const win = createWindow(null, { show: false });
   win.webContents.once('did-finish-load', () => win.webContents.send('tab:adopt', document));
   placeAt(win, x, y);
+  win.show();
   return 'detached';
 });
 

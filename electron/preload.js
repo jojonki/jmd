@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('jmd', {
   setEdited: (edited) => ipcRenderer.send('window:set-edited', edited),
   setRepresentedFile: (filePath) => ipcRenderer.send('window:set-represented-file', filePath),
   closeWindow: () => ipcRenderer.send('window:close'),
+  /** The theme's background, so the next window can open in it. */
+  setBackground: (color) => ipcRenderer.send('window:set-background', color),
 
   // Turn `![](./img/foo.png)` into a URL the preview can actually load. The
   // custom scheme works under both the dev server and the packaged file:// page.

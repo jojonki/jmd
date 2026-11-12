@@ -246,6 +246,13 @@
   padding: 2px 0;
 }
 
+/* TeX source shown for the moment before KaTeX has loaded. */
+.markdown-body .math-pending {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--fg-muted);
+}
+
 .markdown-body .math-error {
   font-family: var(--font-mono);
   font-size: 0.9em;

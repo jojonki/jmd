@@ -4,9 +4,9 @@ import deflist from 'markdown-it-deflist';
 import mark from 'markdown-it-mark';
 import sub from 'markdown-it-sub';
 import sup from 'markdown-it-sup';
-import hljs from 'highlight.js/lib/common';
 import DOMPurify from 'dompurify';
-import mathPlugin from './math.js';
+import mathPlugin, { renderTex } from './math.js';
+import { loaded, loadHighlighter } from './lazy.js';
 
 /**
  * The renderer is deliberately a pure `markdown -> html` function: everything
@@ -20,7 +20,14 @@ const md = new MarkdownIt({
   breaks: false,
   typographer: false,
   highlight(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
+    if (!lang) return md.utils.escapeHtml(code);
+    const hljs = loaded.hljs;
+    // Plain until highlight.js arrives; `upgradeRendered` colours it then.
+    if (!hljs) {
+      loadHighlighter();
+      return md.utils.escapeHtml(code);
+    }
+    if (hljs.getLanguage(lang)) {
       try {
         return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
       } catch {
@@ -151,6 +158,39 @@ const PURIFY_CONFIG = {
 /** Render markdown source to sanitized HTML. */
 export function renderMarkdown(source) {
   return DOMPurify.sanitize(md.render(source), PURIFY_CONFIG);
+}
+
+/**
+ * Bring already-rendered HTML up to date with the libraries that have loaded
+ * since it was rendered: highlight the code printed plain, typeset the TeX
+ * printed as source. Only the code and math elements are touched. They are
+ * read-only in the preview, so no caret or in-progress edit is disturbed, and
+ * the result is what a fresh render would give — the next patch finds them
+ * unchanged. Returns whether anything changed.
+ */
+export function upgradeRendered(root) {
+  let changed = false;
+  if (loaded.katex) {
+    for (const pending of root.querySelectorAll('.math > .math-pending')) {
+      const host = pending.parentElement;
+      host.innerHTML = DOMPurify.sanitize(
+        renderTex(host.getAttribute('data-math') ?? '', host.classList.contains('math-block')),
+        PURIFY_CONFIG,
+      );
+      changed = true;
+    }
+  }
+  if (loaded.hljs) {
+    for (const code of root.querySelectorAll('pre > code[class*="language-"]')) {
+      if (code.firstElementChild) continue;
+      const lang = /language-([^\s]+)/.exec(code.className)?.[1];
+      if (!lang || !loaded.hljs.getLanguage(lang)) continue;
+      const html = md.options.highlight(code.textContent, lang);
+      code.innerHTML = DOMPurify.sanitize(html, PURIFY_CONFIG);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 export { md };

@@ -1,4 +1,4 @@
-import katex from 'katex';
+import { loaded, loadMath } from './lazy.js';
 
 /**
  * markdown-it plugin: `$…$` inline math and `$$…$$` block math, rendered with
@@ -116,7 +116,20 @@ function blockMath(state, startLine, endLine, silent) {
   return true;
 }
 
-function render(content, displayMode) {
+const escapeHtml = (value) =>
+  value.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+/**
+ * TeX to HTML. Before KaTeX has loaded this asks for it and prints the source
+ * in a `.math-pending` placeholder, which `upgradeRendered` replaces once it
+ * arrives.
+ */
+export function renderTex(content, displayMode) {
+  const katex = loaded.katex;
+  if (!katex) {
+    loadMath();
+    return `<span class="math-pending">${escapeHtml(content)}</span>`;
+  }
   try {
     return katex.renderToString(content, {
       displayMode,
@@ -126,10 +139,8 @@ function render(content, displayMode) {
       trust: false,
     });
   } catch (err) {
-    const message = String(err && err.message ? err.message : err);
-    const escaped = message.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-    const raw = content.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-    return `<span class="math-error" title="${escaped}">${raw}</span>`;
+    const message = escapeHtml(String(err && err.message ? err.message : err));
+    return `<span class="math-error" title="${message}">${escapeHtml(content)}</span>`;
   }
 }
 
@@ -140,8 +151,8 @@ export default function mathPlugin(md) {
   });
 
   md.renderer.rules.math_inline = (tokens, idx) =>
-    `<span class="math math-inline" data-math="${md.utils.escapeHtml(tokens[idx].content)}">${render(tokens[idx].content, false)}</span>`;
+    `<span class="math math-inline" data-math="${md.utils.escapeHtml(tokens[idx].content)}">${renderTex(tokens[idx].content, false)}</span>`;
 
   md.renderer.rules.math_block = (tokens, idx) =>
-    `<div class="math math-block" data-math="${md.utils.escapeHtml(tokens[idx].content)}">${render(tokens[idx].content, true)}</div>\n`;
+    `<div class="math math-block" data-math="${md.utils.escapeHtml(tokens[idx].content)}">${renderTex(tokens[idx].content, true)}</div>\n`;
 }
